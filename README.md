@@ -2,40 +2,81 @@
 MC code for computing the free energy ratio of the 2DRBI model for varying points in p-T space.
 
 
-Building and installation
--------------------------
-### Building and installing ALPSCore
+v0.1
 
-Detailed instructions on [how to build ALPSCore][7] can be fournd in the
-project's wiki. 
+Code for computing the free energy ratio of the 2DRBI model for varying points in p-T space.
 
-### Building client codes
 
-The proposed framework does not follow a traditional build model, in that it does
-_not_ provide a library for the client codes to link against. This is rooted in
-the fact that it provides `main` functions for the five executables mentioned in
-the foregoing section. Instead, the root-level
-[`CMakeLists.txt`](./CMakeLists.txt) exposes the relevant source files as CMake
-variables `${TKSVM_SAMPLE_SRC}` (and analogous for the other executables), the
-libraries as `${TKSVM_LIBRARIES}` and the include directories as
-`${TKSVM_INCLUDE_DIRS}`.
-These may then be used from the `CMakeLists.txt` file of each of the client
-codes. It must also add the compile definitions exposed in
-`${TKSVM_DEFINITIONS}` and additionally define a variable `TKSVM_SIMINCL`
-holding the name of the header of the main ALPSCore simulation class which
-should define a type (alias) `sim_base` to that class.
+### Building and installation
+To generate jobs and run the code, one first needs to have installed the ALPSCode libraries. Detailed instructions on how to build ALPSCore can be fournd in the
+project's wiki.
 
-Refer to the build file of one of the client codes (_e.g._
-[`gauge/CMakeLists.txt`](./gauge/CMakeLists.txt)) for an example. Third-party
-client codes may rather keep this repository as a submodule in their own tree,
-in which case the line
+The executable client code is compiled through the use of [`CMakeLists.txt`](./CMakeLists.txt). Inside  a build folder, execute the command 
+```bash
+$ cmake .. -DCONFIG_MAPPING=LAZY -DALPSCore_DIR=~/path_to_ALPSCore -DEigen3_DIR=~path_to_eigen3/eigen3
+$ make -j8
+```
 
-    add_subdirectory(.. tksvm)
+## Execution of the code
 
-simply becomes
+Numerical implementation of the MC simulation requires the generation of a set of initial configurations and simulation parameters. This process is carried out by [`submit_jobs.py`](./submit_jobs.py), which follows the footprint given by [`RBI_template.ini`](./RBI_template.ini).
 
-    add_subdirectory(svm-order-params)
+Once the configuration and the parameter files are generated, one can execute the command 
+```bash
+$ mpirun -n 1 ~/path_to_build/2DRBI ../path_to_ini_file/2DRBI.ini
+```
+to run the code with the chosen parameters and generated configurations.
 
-Refer to the READMEs of the client codes for build instructions on them
-specifically, e.g. [Building the `gauge` client
-code](./gauge#building-and-installation).
+In its current version, the code will give as output the amount of time it spent in each p-T_point of choice. 
+The code is embarassingly parallelized, meaning it will run the same computation on different cores without communication. 
+
+## Code sections
+
+### SIGNIFICANT PARTS (sections which require changes depending on parameter choice, code updates etc):
+
+### submit_jobs.py
+Generates a sequence of simulations for a given choice of parameters. Here, one needs to choose:
+
+$ Lattice size                          L
+$ a list with N temperature values	    T_vec
+$ a list with N disorder values		    p_vec
+$ Number of thermalization sweeps		therm
+$ Number of simulation sweeps		    totsweeps
+$ Number of different configurations	N_disorder_reps
+$ start configuration (even or odd)	    start_config
+
+For a given choice of initial configurations, the code generates $N_disorder_reps$ folders and .ini files, each with its own seed and set of bond configurations.
+
+To generate the bond configurations, in each disorder rep we first generate an initial bond configuration according to the disorder value of the first p-T point. Disordered bonds are then added/removed at random to reach the disorder value of the adjacent p-T point. This process is repeated until the bond configuration of the last p-T point is obtained. 
+While all disorder reps work on the same set of p-T points, the generation process for these bond configurations are independent and have no correlation between different disorder reps.
+
+For benchmarking purposes, we will start with just one disorder rep and a few p-T points. 
+
+
+### 2DRBI.cpp 
+All meaningful functions regarding the MC simulation are written here.
+Most functions take care of the saving and loading of the parameters and observables of each individual core. The most significant function which will be modified over time is ising_sim::update() , which contains all steps executed during a single MC sweep and is called by the main code for every MC step.
+
+
+### FIXED/SUPPLEMENTARY PARTS (code sections that do not require changes)
+
+### main.cpp
+Main body of the code. After loading all the parameters the parallel simulations are initialized and executed. Each replica is labeled by its unique temperature value and the respective p value, which are imported from the p-T_points file. Upon conclusion of each simulation, the results are collected, wrapped and stored in an hdf5 file. 
+
+### measurement.cpp, .hpp
+Contain the functions used to compute possible observables. At the moment, these are superfluous and are kept only in case of future use. 
+
+### storage_type.hpp
+class dictating how data are saved and loaded in hdf5 files.
+
+### temperature.hpp 
+Defines the structure for the phase space point associated to each replica. This is solely identified by the temperature and is identified by a lable temp. While in future an extra label p could be added to streamline computation, at the moment it is not required as each replica has its own T value and a unique, respective p value associated to it called from the "p-T_point" table.
+
+### mpi.hpp 
+Contains definitions for all objects working on communication between cores.
+
+### pt_adapter.hpp
+Contains definitions for all objects using mpi to apply parallel tempering in Monte Carlo simulations.
+
+### exp_beta.hpp
+Contains look-up table used to speed up computation of exponentials during Monte Carlo updates.
