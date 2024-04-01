@@ -1,0 +1,56 @@
+v0.1
+
+Code for computing the free energy ratio of the 2DRBI model for varying points in p-T space.
+
+
+Running the code:
+1) Run submit_jobs.py to generate the configurations, the initialization files (written using the footprint given by "RBI_template.ini" and the slurm submission files (only used on cluster) 
+2) In a build folder, execute the command " cmake .. -DCONFIG_MAPPING=LAZY -DALPSCore_DIR=$HOME/.local_ALPS/share/ALPSCore -DEigen3_DIR=$opt/homebrew/Cellar/eigen/3.4.0_1/include/eigen3 ", then " make -j8 " to generate the executable files
+3) always in the build folder, run the command " mpirun -n 1 ./2DRBI ../path_to_ini_file/Tetra.ini " to run the code with the chosen parameters and generated configuration
+
+The code will give as output the amount of time it spent in each p-T_point of choice. The current version is embarassingly parallelized, meaning it runs the same computation on many cores without communication. 
+
+CODE SECTIONS:
+
+SIGNIFICANT PARTS (sections which require changes depending on parameter choice, code updates etc):
+
+submit_jobs.py : generates (and, when specified, runs) a sequence of simulations for a given choice of parameters. Here, one needs to choose:
+Lattice size L
+a list with N temperature values	T_vec
+a list with N disorder values		p_vec
+Number of thermalization sweeps		therm
+Number of simulation sweeps		totsweeps
+Number of different configurations	N_disorder_reps
+start configuration (even or odd)	start_config
+
+
+For a given choice of initial configurations, the code generates N_disorder_reps folders and .ini files, each with its own seed and bond configurations.
+
+To generate the bond configurations, in each disorder rep we first generate a bond configuration for the first p-T point according to its value of p. Then, disordered bonds are added/removed at random to reach the disorder value of the adjacent p-T point. This process is repeated until the bond configuration of the last p-T point is obtained. 
+While all disorder reps work on the same set of T-p points, the generation process for these bond configurations are independent and have no correlation between different disorder reps.
+
+For benchmarking purposes, we will start with just one disorder rep and a few p-T points. 
+
+
+2DRBI.cpp : all meaningful functions regarding the MC simulation are written here.
+Most functions take care of the saving and loading of the parameters and observables of each individual core. The most significant function which will be modified over time is ising_sim::update(), which contains all steps executed during a single MC sweep and is called by the main code for every MC step.
+
+
+
+
+FIXED/SUPPLEMENTARY PARTS (code sections that do not require changes)
+
+main.cpp : body of the main code. After loading all the parameters the parallel simulations are initialized and executed. The main discriminator between different replicas is their temperature value and the respective p value, which are imported from the p-T_points file. Upon conclusion of each simulation, the results are collected, wrapped and stored in an hdf5 file. 
+
+measurement.cpp, .hpp: contain the functions used to compute possible observables. At the moment, these are superfluous and are kept only in case of future use. 
+
+storage_type.hpp: class dictating how data are saved and loaded in hdf5 files.
+
+temperature.hpp: structure file for the phase space point associated to each replica. This is solely identified by the temperature and is identified by a lable temp. While in future an extra label p could be added to streamline computation, at the moment it is not required as each replica has its own T value and a unique, respective p value associated to it called from the "p-T_point" table.
+
+mpi.hpp: All objects working on communication between cores are defined here.  
+pt_adapter.hpp: All objects using mpi to apply parallel tempering in Monte Carlo simulations are defined here.
+
+exp_beta.hpp: look-up table used to speed up computation of exponentials during Monte Carlo updates.
+
+
