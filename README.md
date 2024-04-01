@@ -6,7 +6,6 @@ v0.1
 
 Code for computing the free energy ratio of the 2DRBI model for varying points in p-T space.
 
-
 ### Building and installation
 To generate jobs and run the code, one first needs to have installed the ALPSCode libraries. Detailed instructions on how to build ALPSCore can be fournd in the
 project's wiki.
@@ -56,6 +55,10 @@ For benchmarking purposes, we will start with just one disorder rep and a few p-
 ### 2DRBI.cpp 
 All meaningful functions regarding the MC simulation are written here.
 Most functions take care of the saving and loading of the parameters and observables of each individual core. The most significant function which will be modified over time is ising_sim::update() , which contains all steps executed during a single MC sweep and is called by the main code for every MC step.
+
+### square_rotated.hpp 
+Contains the functions used to identify the nearest neighbours of each site.
+The Random Bond Ising Model in 2D is used to execute a stabilizer syndrome analysis of the 2D Toric Code with open boundary conditions in the rotated formalism. For a surface code of (odd) lattice size $L\timesL$, the classical model is characterized by a lattice with $L-1$ rows and $(L+1)/2$. Each site $i$ is coupled to $4$ neighbours, with each coupling being the classical equivalent of a quantum qubit. Due to open boundary conditions, the qubits on the top and bottom edges, the leftmost qubit of every second row and the rightmost qubit of every other row have $2$ neighbours, while the qubits on the top left and bottom right corners only have $1$ neighbour.
 
 
 ### FIXED/SUPPLEMENTARY PARTS (code sections that do not require changes)
