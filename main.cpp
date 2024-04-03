@@ -80,8 +80,8 @@ int main(int argc, char** argv)
 
         std::vector<double> T_vec;
         std::vector<double> p_vec;
-        T_vec.resize(std::size_t(parameters["N_replica"]));
-        p_vec.resize(std::size_t(parameters["N_replica"]));
+        T_vec.resize(std::size_t((int) parameters["N_replica"]+1));
+        p_vec.resize(std::size_t((int) parameters["N_replica"]+1));
         for (int i=0; i<T_vec.size(); i++){
             Tp_points >> T_vec[i];
             Tp_points >> p_vec[i];
@@ -101,13 +101,11 @@ int main(int argc, char** argv)
             sim.reset_sweeps(!sim.update_phase_point(this_temp));            
         sim.update_phase_point(this_temp);
 
-//        if (is_master)
-//            std::cout << "Simulating " + std::to_string(N_replica) + " replica" << std::endl;
 
         bool finished = sim.run(alps::stop_callback(size_t(parameters["timelimit"])));
 
-        mpi::barrier(comm_world);
 
+        mpi::barrier(comm_world);
 
         // Checkpoint the simulation
         mpi::mutex archive_mutex(comm_world);
