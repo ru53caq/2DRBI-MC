@@ -58,7 +58,7 @@ class ising_sim : public pt_adapter<phase_space_point::temperature> {
     int Nmeas = 0;
     double E_tot;
     int NBins;
-
+    int PTval;
     std::string simdir;
     std::vector<int> J_x;
     std::vector<int> J_y;
