@@ -48,14 +48,14 @@ def main():
     ##Define set of temperatures and respective disorder values
     #This will define a look-up table to keep tabs on the parameters for when replica exchanges occur
     # For how parallel tempering is implemented, temperatures must go from lowest to highest
-    T_vec = [4.,4.5]
-    p_vec = [0.,0.]
+    T_vec = [4.,4.5, 5.0, 5.5, 6.0]
+    p_vec = [0.,0., 0.0, 0.0, 0.0]
     points = np.array([T_vec,p_vec]).transpose()
 
     timelimit = 40*3600
-    therm = 10000000
-    totsweeps = 10000000
-    Nreplica = len(T_vec)
+    therm = 1000000
+    totsweeps = 1000000
+    Nreplica = len(T_vec)-1
     Nbins = 500
     N_avg_p = 1
 
