@@ -7,7 +7,6 @@ void ising_sim::define_parameters(parameters_type & parameters) {
     if (parameters.is_restored()) {
         return;
     }
-
     // Adds the parameters of the base class
     Base::define_parameters(parameters);
     alps::define_convenience_parameters(parameters)
@@ -47,7 +46,7 @@ ising_sim::ising_sim(parameters_type & parms, std::size_t seed_offset)
     , measuring_sweeps(parameters["measuring_sweeps"])
     , pt_sweeps(parameters["pt_sweeps"])
     , temp(parameters)
-    , N_replica(parameters["N_replica"])
+    , N_replica(5)
     , p(parameters["disorder"].as<double>())
     , J_x(lat_sites)
     , J_y(lat_sites)
@@ -68,9 +67,10 @@ ising_sim::ising_sim(parameters_type & parms, std::size_t seed_offset)
     simdir = "../L_" + std::to_string(L) + "/" + "p_"+std::to_string(p).substr(0,5) + "/"  + initial_state + "/Seed_0/";
 
     std::ifstream Tp_points(simdir + "T-p_points.data");
-    T_vec.resize(parameters["N_replica"]);
-    p_vec.resize(parameters["N_replica"]);
-    time_in_Ti.resize(parameters["N_replica"]);
+    int Nreps = parameters["N_replica"];
+    T_vec.resize(Nreps+1);
+    p_vec.resize(Nreps+1);
+    time_in_Ti.resize(Nreps+1);
     for (int i=0; i<T_vec.size(); i++){
         Tp_points >> T_vec[i];
         Tp_points >> p_vec[i];
@@ -97,27 +97,39 @@ ising_sim::ising_sim(parameters_type & parms, std::size_t seed_offset)
 
 void ising_sim::update() {
 
-    //Loading p-value given T, importing the bond configuration
-    if (sweeps ==0){
-        T=T_vec[0];     //let's fix each replica to start at T0,p0
+    //Loading p-value given T, importing the bond configuration and, if necessary, import spin configuration
+    if (sweeps == 0){
+
+        std::ifstream PTvalue("PTval.txt");
+        PTvalue >> PTval;
+        PTvalue.close();
+
+        T=temp.temp;     //Each replica starts at a given T,p
         up = true;      
-        auto it = std::find(T_vec.begin(), T_vec.end(), T);
+        auto it = std::find(T_vec.begin(), T_vec.end(), temp.temp);
         ind = std::distance( T_vec.begin(), it);    //ind contains the index of the current T-p point
-        double p_val = p_vec[ind];
         N_core = ind;
-        std::string p_val_str = (std::to_string(p_val)).substr(0,5); 
-        std::ifstream ifs(simdir + "config_p=" + p_val_str + ".data");
+        
+        p = p_vec[ind];
+        std::string p_str = (std::to_string(p)).substr(0,5); 
+        std::ifstream disorder_config(simdir + "config_p=" + p_str + ".data");
         for (int i=0; i<J_x.size(); i++){
-            ifs >> J_x[i];
-            ifs >> J_y[i];
+            disorder_config >> J_x[i];
+            disorder_config >> J_y[i];
         }
-        ifs.close();
-        p = p_val;
+        disorder_config.close();
+
+        //In case of Zratio calculation, reload the final spin configuration available
+        if (PTval ==0){
+            std::ifstream spin_config(std::to_string(T)+ ".data");
+            for (int i=0; i<S.size(); i++)
+                spin_config >> S[i];
+        spin_config.close();
+        }
+
 
         E_tot = total_energy();
-
     }
-
     // measuring relevant observables (useless in the current code version)
     if (sweeps % measuring_sweeps == 0) // placed before update
         record_measurement();
@@ -134,6 +146,7 @@ void ising_sim::update() {
                                                 "\t" <<lat.nb_2(i)<<",  J="<<J_x[i] << "\n\n";
     }
 */
+
     //Heatbath update
     for (int i = 0; i < lat_sites; ++i)
         Heatbath(random_site(rng), beta);
@@ -141,39 +154,93 @@ void ising_sim::update() {
     //Overrelaxation update
     overrelaxation();
 
-    //embarassingly parallel movement between p-T points
-    if ( ( (sweeps + 1) % pt_sweeps == 0 ) ){
 
-        if (sweeps > thermalization_sweeps)
-            time_in_Ti[ind] +=1;
+    //Parallel tempering
+    if ( (PTval > 1 ) && ( (sweeps + 1) % pt_sweeps == 0 ) ){
+
+        double current_energy = total_energy() * lat_sites;
+
+        phase_point temp_old = temp;
+
+        std::vector<int> other_J_x(lat_sites);
+        std::vector<int> other_J_y(lat_sites);
+
+        negotiate_update(rng, true,
+        [&](phase_point other) {
+            auto it = std::find(T_vec.begin(), T_vec.end(), other.temp);
+            int index = std::distance( T_vec.begin(), it);
+            double other_p = p_vec[index];
+            std::string other_p_str = (std::to_string(other_p)).substr(0,5); 
+            std::ifstream conf(simdir + "config_p=" + other_p_str + ".data");
+            for (int i=0; i<J_x.size(); i++){
+                conf >> other_J_x[i];
+                conf >> other_J_y[i];
+            }
+            conf.close();
+            //compute energy of current spin config with the new potential bond config
+            double other_energy = 0.;
+            for(int i = 0; i < lat_sites ; ++i)
+                other_energy   += - ( other_J_x[i] * ( S[i] * S[lat.nb_2(i)] ) + other_J_y[i] * ( S[i] * S[lat.nb_1(i)] ) );
+            double dE= other_energy - current_energy;
+            return -(other_energy / other.temp  - current_energy / temp.temp);  
+        });
+
+        //keep track of the p-T point at which the replica is currently at
+        //Once PT is over, the computation of Z_i/Z_i+1 ratio will start
+        temp!= temp_old  ? (pt_checker=1) : (pt_checker=0);
+        if (pt_checker ==1){
+            auto it = std::find(T_vec.begin(), T_vec.end(), temp.temp);
+            int index = std::distance( T_vec.begin(), it);
+            double other_p = p_vec[index];
+//            std::cout << "Update accepted" << std::endl;
+            std::string other_p_str = (std::to_string(other_p)).substr(0,5); 
+            std::ifstream conf(simdir + "config_p=" + other_p_str + ".data");
+            for (int i=0; i<J_x.size(); i++){
+                conf >> J_x[i];
+                conf >> J_y[i];
+            }
+            conf.close();
+            p = other_p;
+            E_tot = total_energy();
+            T = temp.temp;
+            ind = index;
+        }
+
+    }
+
+
+    //embarassingly parallel movement between the initial p-T point and its neighbour 
+    if ( (PTval ==0) && ( (sweeps + 1) % pt_sweeps == 0 ) ){
 
         double current_energy = total_energy() * lat_sites;
         std::vector<int> other_J_x(lat_sites);
         std::vector<int> other_J_y(lat_sites);
 
+        double other_T;
+        double other_p;
 
-        double T_old=T;
-        int other_ind;
-        if (up)
-            other_ind = ind+1;
-        else
-            other_ind = ind-1;
-        double other_T = T_vec[other_ind];
-        double other_p = p_vec[other_ind];
+        if (up){
+            time_in_Ti[ind] +=1;
+            other_T = T_vec[ind+1];
+            other_p = p_vec[ind+1];
+        }
+        else{
+            time_in_Ti[ind+1] +=1;
+            other_T = T_vec[ind];
+            other_p = p_vec[ind];
+        }
         std::string other_p_str = (std::to_string(other_p)).substr(0,5); 
         std::ifstream conf(simdir + "config_p=" + other_p_str + ".data");
         for (int i=0; i<J_x.size(); i++){
             conf >> other_J_x[i];
             conf >> other_J_y[i];
         }
-
         conf.close();
+
         //compute energy of current spin config with the new potential bond config
         double other_energy = 0.;
-
-        for(int i = 0; i < lat_sites ; ++i){
+        for(int i = 0; i < lat_sites ; ++i)
             other_energy   += - ( other_J_x[i] * ( S[i] * S[lat.nb_2(i)] ) + other_J_y[i] * ( S[i] * S[lat.nb_1(i)] ) );
-        }    
         double dE= other_energy - current_energy;
 
         double u = std::uniform_real_distribution<double>{0., 1.}(rng);
@@ -181,30 +248,34 @@ void ising_sim::update() {
         if(u<alpha){
             T=other_T;
             p=other_p;
-            ind = other_ind;
             J_x = other_J_x;
             J_y = other_J_y;
-            if (ind == N_replica-1)
-                up=false;
-            if (ind == 0)
-                up=true;
+            up = !up;
             E_tot = total_energy();
         }
+
+        // Checkpoint the amount of times each p-T point has been visited
+        if ( ( (sweeps + 1) % (1000*pt_sweeps) == 0 ) ){
+            std::ofstream ofs("Ti_time_rep_"+std::to_string(N_core) + ".txt");
+            for (auto & val : time_in_Ti)
+                ofs << val << " ";
+            ofs.close();
+        }
+
+        if (sweeps == thermalization_sweeps+total_sweeps -1)
+            std::cout << time_in_Ti[ind]/time_in_Ti[ind+1]<< std::endl;
     }
 
-    // Checkpoint the amount of times each p-T point has been visited
-    if ( ( (sweeps + 1) % (1000*pt_sweeps) == 0 ) ){
-        std::ofstream ofs("Ti_time_rep_"+std::to_string(N_core) + ".txt");
-        for (auto & val : time_in_Ti)
-            ofs << val << " ";
-        ofs.close();
-    }
 
     ++sweeps;
 
-    if (sweeps == thermalization_sweeps+total_sweeps -1)
-        std::cout << time_in_Ti[0]/time_in_Ti[1]<< std::endl;
-
+    //In case of Zratio calculation, reload the final spin configuration available
+    if ( (sweeps% (1000*pt_sweeps) ==0)  && (sweeps>thermalization_sweeps) && (PTval == 1 )){
+        std::ofstream spin_config(std::to_string(T) + ".data");
+        for (int i=0; i<S.size(); i++)
+            spin_config << S[i] << "\n";
+    spin_config.close();
+    }
 }
 
 // Collects the measurements
