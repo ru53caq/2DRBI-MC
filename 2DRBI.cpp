@@ -273,7 +273,7 @@ void ising_sim::update() {
         }
 
         // Checkpoint the amount of times each p-T point has been visited
-        if ( ( (sweeps + 1) % (1000*pt_sweeps) == 0 ) ){
+        if ( ( (sweeps + 1) % (100*pt_sweeps) == 0 ) ){
             std::ofstream ofs("Ti_time_rep_"+std::to_string(N_core) + ".txt");
             for (auto & val : time_in_Ti)
                 ofs << val << " ";
@@ -281,14 +281,14 @@ void ising_sim::update() {
         }
 
         if (sweeps == thermalization_sweeps+total_sweeps -1)
-            std::cout << time_in_Ti[ind]/time_in_Ti[ind+1]<< std::endl;
+            std::cout << "Z(" << T_vec[ind] << ")/Z(" << T_vec[ind+1] << ")=" << time_in_Ti[ind]/time_in_Ti[ind+1]<< std::endl;
     }
 
 
     ++sweeps;
 
     //In case of Zratio calculation, reload the final spin configuration available
-    if ( (sweeps% (1000*pt_sweeps) ==0)  && (sweeps>thermalization_sweeps) && (PTval == 1 )){
+    if ( (sweeps% (100*pt_sweeps) ==0)  && (sweeps>thermalization_sweeps) && (PTval == 1 )){
         std::ofstream spin_config(std::to_string(T) + ".data");
         for (int i=0; i<S.size(); i++)
             spin_config << S[i] << "\n";
