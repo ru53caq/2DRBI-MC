@@ -96,7 +96,6 @@ ising_sim::ising_sim(parameters_type & parms, std::size_t seed_offset)
 
 
 void ising_sim::update() {
-
     //Loading p-value given T, importing the bond configuration and, if necessary, import spin configuration
     if (sweeps == 0){
 

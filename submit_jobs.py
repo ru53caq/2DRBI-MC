@@ -53,8 +53,8 @@ def main():
     points = np.array([T_vec,p_vec]).transpose()
 
     timelimit = 40*3600
-    therm = 1000000
-    totsweeps = 1000000
+    therm = 100000
+    totsweeps = 100000
     Nreplica = len(T_vec)-1
     Nbins = 500
     N_avg_p = 1

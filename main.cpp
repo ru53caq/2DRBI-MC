@@ -133,6 +133,7 @@ int main(int argc, char** argv)
         
         alps::results_type<my_sim_type>::type results = alps::collect_results(sim);
         
+/*        
         // Save results to the .out.h5 file
         {    
 
@@ -179,6 +180,7 @@ int main(int argc, char** argv)
             ar.close();
 
         }        
+*/
         //Post Processing
         int MPI_Barrier(MPI_Comm comm_world);
         if (comm_world.rank() == 0) {
