@@ -46,8 +46,20 @@ int main(int argc, char** argv)
     try {
         // Creates the parameters for the simulation
         // If an hdf5 file is supplied, reads the parameters there
-        if (is_master)
+        if (is_master){
+            std::string filename = "PTval.txt";
+            std::ifstream file(filename);
+        if (!file.is_open()) {
+                // If the file doesn't exist, create it and write 1 inside
+                std::ofstream newFile(filename);
+                newFile << "1"; // Write 1 inside the file
+                newFile.close();
+            } 
+        else 
+            file.close();
+
             std::cout << "Creating simulations..." << std::endl;
+        }
         
         alps::params parameters(argc, argv);
         my_sim_type::define_parameters(parameters);

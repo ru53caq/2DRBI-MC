@@ -115,8 +115,10 @@ def main():
             # Lattice parameters
             Nx = (L+1)/2    #X-length of the lattice
             Ny = (L-1)      #Y-length of the lattice
-            lat_sites = np.intc(Nx*Ny)
-            N_bonds = 2*lat_sites - 2*Nx - (Ny-1)
+            Nboundary_bonds = 2*L   # Number of boundary field terms (NONFLUCTUATING, these are not lattice sites)
+
+            lat_sites = np.intc(Nx*Ny)      
+            N_bonds = 2*lat_sites - 2*Nx - (Ny-1) + Nboundary_bonds 
 
 
             ## Save T-p datapoints in the replica path so simulations know where to look up to
@@ -129,17 +131,20 @@ def main():
 
             def config_init(p,lat_sites,Nx,Ny):
                 ## Disorder bond configuration for the first p-T point
-                config = -1 * bern.rvs(p_vec[0], size = (lat_sites,2)) *2 + 1
+                config = -1 * bern.rvs(p_vec[0], size = (lat_sites + Nboundary_bonds,2)) *2 + 1
 
                 #Adjustment for OPEN BOUNDARY CONDITIONS: no couplings beyond the edges (set certain couplings to 0)
-                for i in range(lat_sites):
-                    if (i >= lat_sites - Nx):
-                        config[i,0] = 0
-                        config[i,1] = 0
-                    if (i% (2*Nx) == Nx -1 ):
-                        config[i,0] = 0
-                    if (i% (2*Nx) == Nx ):
-                        config[i,1] = 0
+                for i in range(lat_sites + Nboundary_bonds):
+                    if (i >= lat_sites - Nx) & (i < lat_sites):
+                        config[i,0] = 0         # Last row does not have Jx
+                        config[i,1] = 0         # Last row does not have Jy
+                    if (i% (2*Nx) == Nx -1) & (i< lat_sites - Nboundary_bonds):
+                        config[i,0] = 0         # Right boundaries do not have Jx
+                    if (i% (2*Nx) == Nx ) & (i< lat_sites - Nboundary_bonds):
+                        config[i,1] = 0         # Left boundaries do not have Jy
+                for i in range(lat_sites,lat_sites + Nboundary_bonds):
+                    config[i,1] = 0   # only 1 coupling per boundary node
+
                 config_dis = np.count_nonzero(config<0)/(N_bonds)  
 
                 return config,config_dis

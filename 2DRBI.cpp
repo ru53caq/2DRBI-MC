@@ -37,7 +37,7 @@ ising_sim::ising_sim(parameters_type & parms, std::size_t seed_offset)
     , rng(parameters["SEED"].as<std::size_t>() + seed_offset)
     , rng2(parameters["SEED"].as<std::size_t>() + seed_offset)
     , L(parameters["L"])
-    , lat_sites( ((L+1) * (L-1)) / 2  )         // Given TC in rotated formalism of size L, the lattice of interest for the RBI takes this form
+    , lat_sites( ((L+1) * (L-1)) / 2 )         // Given TC in rotated formalism of size L, the lattice of interest for the RBI takes this form
     , lat(L)
     , op_measure(L)
     , sweeps(0) //current sweep
@@ -156,9 +156,9 @@ void ising_sim::update() {
 
 
     //Parallel tempering
-    if ( (PTval > 1 ) && ( (sweeps + 1) % pt_sweeps == 0 ) ){
+    if ( (PTval > 0 ) && ( (sweeps + 1) % pt_sweeps == 0 ) ){
 
-        double current_energy = total_energy() * lat_sites;
+        double current_energy = total_energy();
 
         phase_point temp_old = temp;
 
@@ -179,8 +179,13 @@ void ising_sim::update() {
             conf.close();
             //compute energy of current spin config with the new potential bond config
             double other_energy = 0.;
-            for(int i = 0; i < lat_sites ; ++i)
-                other_energy   += - ( other_J_x[i] * ( S[i] * S[lat.nb_2(i)] ) + other_J_y[i] * ( S[i] * S[lat.nb_1(i)] ) );
+            for(int i = 0; i < lat_sites - 2*(L+1)/2 ; ++i)
+                other_energy += - other_J_x[i] * ( S[i] * S[lat.nb_2(i)] ) + other_J_y[i] * ( S[i] * S[lat.nb_1(i)] );
+            for(int i = (L+1)*(L-1)/2 ; i < (L+1)*(L-1)/2 + (L+1)/2 ; ++i)
+                other_energy += - S[i] * other_J_x[i] * S[i - ((L+1) * (L-1)) / 2];
+            for(int i = (L+1)*(L-1)/2  + (L+1)/2 ; i < (L+1)*(L-1)/2 + 2*(L+1)/2 ; ++i)
+                other_energy += - S[i] * other_J_x[i] * S[i - 2*(L+1)/2];
+
             double dE= other_energy - current_energy;
             return -(other_energy / other.temp  - current_energy / temp.temp);  
         });
@@ -212,7 +217,7 @@ void ising_sim::update() {
     //embarassingly parallel movement between the initial p-T point and its neighbour 
     if ( (PTval ==0) && ( (sweeps + 1) % pt_sweeps == 0 ) ){
 
-        double current_energy = total_energy() * lat_sites;
+        double current_energy = total_energy();
         std::vector<int> other_J_x(lat_sites);
         std::vector<int> other_J_y(lat_sites);
 
@@ -239,12 +244,26 @@ void ising_sim::update() {
 
         //compute energy of current spin config with the new potential bond config
         double other_energy = 0.;
-        for(int i = 0; i < lat_sites ; ++i)
-            other_energy   += - ( other_J_x[i] * ( S[i] * S[lat.nb_2(i)] ) + other_J_y[i] * ( S[i] * S[lat.nb_1(i)] ) );
+        for(int i = 0; i < lat_sites; ++i){
+            other_energy   += J_x[i] * ( S[i] * S[lat.nb_2(i)] ) + J_y[i] * ( S[i] * S[lat.nb_1(i)] );
+            if (i == (L+1)/2 -1)
+                other_energy += S[i] * J_x[ (L+1) * (L-1)/2 + 2*i ];
+            else if (i < (L+1)/2 -1 ){
+                other_energy += S[i] * J_x[ (L+1) * (L-1)/2 + 2*i ];
+                other_energy += S[i] * J_x[ (L+1) * (L-1)/2 + 2*i +1 ];
+            }
+            else if (i == (L+1)*(L-2)/2)
+                other_energy += S[i] * J_x[ (L+1)*(L-1)/2 + L ];
+            else if (i > (L+1)*(L-2)/2){
+                other_energy += S[i] * J_x[ (L+1) * (L-1)/2 +  L + 2*( i - (L+1)*(L-2)/2) ];
+                other_energy += S[i] * J_x[ (L+1) * (L-1)/2 +  L + 2*( i - (L+1)*(L-2)/2) +1];
+            }
+        }
+        other_energy = - other_energy;
         double dE= other_energy - current_energy;
 
         double u = std::uniform_real_distribution<double>{0., 1.}(rng);
-        double alpha = std::exp(-(other_energy / other_T  - current_energy / T) );  
+        double alpha = std::exp(-(other_energy / other_T  - current_energy / T) );
         if(u<alpha){
             T=other_T;
             p=other_p;
@@ -295,7 +314,7 @@ void ising_sim::measure() {
         std::fill(OP_Hist.begin(),OP_Hist.end(),0);
         
         if (op == "Energy"){
-            op_value = total_energy();
+            op_value = total_energy()/lat_sites;
             if (op_value<=0)
                 OP_Hist[std::size_t( (-1.* op_value + 1e-9 )/ (2./(NBins)))] += 1;
             if (op_value>0)
@@ -401,16 +420,42 @@ void ising_sim::load(alps::hdf5::archive & ar) {
 
 double ising_sim::local_energy(int i){
     double e = S[i] * (J_x[i]*S[lat.nb_2(i)] + J_x[lat.nb_3(i)]*S[lat.nb_3(i)] + J_y[i]*S[lat.nb_1(i)] + J_y[lat.nb_4(i)]*S[lat.nb_4(i)]);
+
+    if (i == (L+1)/2 -1)
+        e += S[i] * J_x[ (L+1) * (L-1)/2 + 2*i ];
+    else if (i < (L+1)/2 -1 ){
+        e += S[i] * J_x[ (L+1) * (L-1)/2 + 2*i ];
+        e += S[i] * J_x[ (L+1) * (L-1)/2 + 2*i +1 ];
+    }
+    else if (i == (L+1)*(L-2)/2)
+        e += S[i] * J_x[ (L+1)*(L-1)/2 + L ];
+    else if (i > (L+1)*(L-2)/2){
+        e += S[i] * J_x[ (L+1) * (L-1)/2 +  L + 2*( i - (L+1)*(L-2)/2) ];
+        e += S[i] * J_x[ (L+1) * (L-1)/2 +  L + 2*( i - (L+1)*(L-2)/2) +1];
+    }
+
     return - e;
 }
 
 
 double ising_sim::total_energy(){
     double E = 0.;
-    for(int i = 0; i < lat_sites ; ++i)
+    for(int i = 0; i < lat_sites; ++i){
         E   += J_x[i] * ( S[i] * S[lat.nb_2(i)] ) + J_y[i] * ( S[i] * S[lat.nb_1(i)] );
-
-    return - E / lat_sites; // normalized by # spins
+        if (i == (L+1)/2 -1)
+            E += S[i] * J_x[ (L+1) * (L-1)/2 + 2*i ];
+        else if (i < (L+1)/2 -1 ){
+            E += S[i] * J_x[ (L+1) * (L-1)/2 + 2*i ];
+            E += S[i] * J_x[ (L+1) * (L-1)/2 + 2*i +1 ];
+        }
+        else if (i == (L+1)*(L-2)/2)
+            E += S[i] * J_x[ (L+1)*(L-1)/2 + L ];
+        else if (i > (L+1)*(L-2)/2){
+            E += S[i] * J_x[ (L+1) * (L-1)/2 +  L + 2*( i - (L+1)*(L-2)/2) ];
+            E += S[i] * J_x[ (L+1) * (L-1)/2 +  L + 2*( i - (L+1)*(L-2)/2) +1];
+        }
+    }
+    return - E; // normalized by # spins
 }
 
 double ising_sim::mag_FM() {
@@ -425,10 +470,10 @@ void ising_sim::Heatbath(int i, double beta) {
         double E_i = E_tot;
         double E_f = E_i;
         int S_i = S[i];
-        E_f += - 2*local_energy(i)/lat_sites;
+        E_f += - 2*local_energy(i);
         S[i]*= -1; 
         double u = std::uniform_real_distribution<double>{0., 1.}(rng);
-        double alpha = std::exp( -beta*(E_f-E_i)*lat_sites);    //Metropolis update 
+        double alpha = std::exp( -beta*(E_f-E_i));    //Metropolis update 
     //    double compl_prob = 1./ (1. + alpha);                 //Heat bath  update
         if (u<alpha)
     //    if (u > compl_prob)
