@@ -44,14 +44,18 @@ int main(int argc, char** argv)
     const bool is_master = (comm_world.rank() == 0);
 
     try {
+
+        std::string simdir;
+        simdir = "../L_5/p_0.000/even/Seed_0/";
+
         // Creates the parameters for the simulation
         // If an hdf5 file is supplied, reads the parameters there
         if (is_master){
             std::string filename = "PTval.txt";
-            std::ifstream file(filename);
+            std::ifstream file(simdir + filename);
         if (!file.is_open()) {
                 // If the file doesn't exist, create it and write 1 inside
-                std::ofstream newFile(filename);
+                std::ofstream newFile(simdir + filename);
                 newFile << "1"; // Write 1 inside the file
                 newFile.close();
             } 
@@ -88,7 +92,7 @@ int main(int argc, char** argv)
         int L = parameters["L"];
         double dis = parameters["disorder"];
         std::string init_state = parameters["initial_state"];
-        std::ifstream Tp_points("../L_" + std::to_string(L) + "/" + "p_"+std::to_string(dis).substr(0,5) + "/"  + init_state + "/Seed_0/T-p_points.data");
+        std::ifstream Tp_points(simdir+"T-p_points.data");
 
         std::vector<double> T_vec;
         std::vector<double> p_vec;

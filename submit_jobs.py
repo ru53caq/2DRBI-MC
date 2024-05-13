@@ -132,15 +132,15 @@ def main():
             def config_init(p,lat_sites,Nx,Ny):
                 ## Disorder bond configuration for the first p-T point
                 config = -1 * bern.rvs(p_vec[0], size = (lat_sites + Nboundary_bonds,2)) *2 + 1
-
+                print(lat_sites)
                 #Adjustment for OPEN BOUNDARY CONDITIONS: no couplings beyond the edges (set certain couplings to 0)
                 for i in range(lat_sites + Nboundary_bonds):
                     if (i >= lat_sites - Nx) & (i < lat_sites):
                         config[i,0] = 0         # Last row does not have Jx
                         config[i,1] = 0         # Last row does not have Jy
-                    if (i% (2*Nx) == Nx -1) & (i< lat_sites - Nboundary_bonds):
+                    if ( (i% (2*Nx) ) == Nx -1) & (i < lat_sites):
                         config[i,0] = 0         # Right boundaries do not have Jx
-                    if (i% (2*Nx) == Nx ) & (i< lat_sites - Nboundary_bonds):
+                    if (i% (2*Nx) == Nx ) & (i< lat_sites):
                         config[i,1] = 0         # Left boundaries do not have Jy
                 for i in range(lat_sites,lat_sites + Nboundary_bonds):
                     config[i,1] = 0   # only 1 coupling per boundary node

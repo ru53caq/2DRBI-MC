@@ -64,7 +64,7 @@ ising_sim::ising_sim(parameters_type & parms, std::size_t seed_offset)
 
     initialization(initial_state);
 
-    simdir = "../L_" + std::to_string(L) + "/" + "p_"+std::to_string(p).substr(0,5) + "/"  + initial_state + "/Seed_0/";
+    simdir = "../L_5/p_0.000/even/Seed_0/";
 
     std::ifstream Tp_points(simdir + "T-p_points.data");
     int Nreps = parameters["N_replica"];
@@ -99,7 +99,7 @@ void ising_sim::update() {
     //Loading p-value given T, importing the bond configuration and, if necessary, import spin configuration
     if (sweeps == 0){
 
-        std::ifstream PTvalue("PTval.txt");
+        std::ifstream PTvalue(simdir + "PTval.txt");
         PTvalue >> PTval;
         PTvalue.close();
 
@@ -120,7 +120,7 @@ void ising_sim::update() {
 
         //In case of Zratio calculation, reload the final spin configuration available
         if (PTval ==0){
-            std::ifstream spin_config(std::to_string(T)+ ".data");
+            std::ifstream spin_config(simdir + std::to_string(T)+ ".data");
             for (int i=0; i<S.size(); i++)
                 spin_config >> S[i];
         spin_config.close();
@@ -177,13 +177,24 @@ void ising_sim::update() {
             }
             conf.close();
             //compute energy of current spin config with the new potential bond config
+
             double other_energy = 0.;
-            for(int i = 0; i < lat_sites - 2*(L+1)/2 ; ++i)
-                other_energy += - other_J_x[i] * ( S[i] * S[lat.nb_2(i)] ) + other_J_y[i] * ( S[i] * S[lat.nb_1(i)] );
-            for(int i = (L+1)*(L-1)/2 ; i < (L+1)*(L-1)/2 + (L+1)/2 ; ++i)
-                other_energy += - S[i] * other_J_x[i] * S[i - ((L+1) * (L-1)) / 2];
-            for(int i = (L+1)*(L-1)/2  + (L+1)/2 ; i < (L+1)*(L-1)/2 + 2*(L+1)/2 ; ++i)
-                other_energy += - S[i] * other_J_x[i] * S[i - 2*(L+1)/2];
+            for(int i = 0; i < lat_sites; ++i){
+                other_energy   += J_x[i] * ( S[i] * S[lat.nb_2(i)] ) + J_y[i] * ( S[i] * S[lat.nb_1(i)] );
+                if (i == (L+1)/2 -1)
+                    other_energy += S[i] * J_x[ (L+1) * (L-1)/2 + 2*i ];
+                else if (i < (L+1)/2 -1 ){
+                    other_energy += S[i] * J_x[ (L+1) * (L-1)/2 + 2*i ];
+                    other_energy += S[i] * J_x[ (L+1) * (L-1)/2 + 2*i +1 ];
+                }
+                else if (i == (L+1)*(L-2)/2)
+                    other_energy += S[i] * J_x[ (L+1)*(L-1)/2 + L ];
+                else if (i > (L+1)*(L-2)/2){
+                    other_energy += S[i] * J_x[ (L+1) * (L-1)/2 +  L + 2*( i - (L+1)*(L-2)/2) ];
+                    other_energy += S[i] * J_x[ (L+1) * (L-1)/2 +  L + 2*( i - (L+1)*(L-2)/2) +1];
+                }
+            }
+            other_energy = - other_energy;
 
             double dE= other_energy - current_energy;
             return -(other_energy / other.temp  - current_energy / temp.temp);  
@@ -257,6 +268,7 @@ void ising_sim::update() {
                 other_energy += S[i] * J_x[ (L+1) * (L-1)/2 +  L + 2*( i - (L+1)*(L-2)/2) ];
                 other_energy += S[i] * J_x[ (L+1) * (L-1)/2 +  L + 2*( i - (L+1)*(L-2)/2) +1];
             }
+
         }
         other_energy = - other_energy;
         double dE= other_energy - current_energy;
