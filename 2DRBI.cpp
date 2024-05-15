@@ -48,8 +48,8 @@ ising_sim::ising_sim(parameters_type & parms, std::size_t seed_offset)
     , temp(parameters)
     , N_replica(5)
     , p(parameters["disorder"].as<double>())
-    , J_x(lat_sites)
-    , J_y(lat_sites)
+    , J_x(lat_sites + 2*L)
+    , J_y(lat_sites + 2*L)
     , NBins(parameters["NBins"])
     , sampling_range_a(parameters["sampling_range_a"].as<double>())
     , sampling_range_b(parameters["sampling_range_b"].as<double>())
@@ -153,7 +153,6 @@ void ising_sim::update() {
     //Overrelaxation update
     overrelaxation();
 
-
     //Parallel tempering
     if ( (PTval > 0 ) && ( (sweeps + 1) % pt_sweeps == 0 ) ){
 
@@ -161,8 +160,8 @@ void ising_sim::update() {
 
         phase_point temp_old = temp;
 
-        std::vector<int> other_J_x(lat_sites);
-        std::vector<int> other_J_y(lat_sites);
+        std::vector<int> other_J_x(lat_sites+2*L);
+        std::vector<int> other_J_y(lat_sites+2*L);
 
         negotiate_update(rng, true,
         [&](phase_point other) {
@@ -190,8 +189,8 @@ void ising_sim::update() {
                 else if (i == (L+1)*(L-2)/2)
                     other_energy += S[i] * J_x[ (L+1)*(L-1)/2 + L ];
                 else if (i > (L+1)*(L-2)/2){
-                    other_energy += S[i] * J_x[ (L+1) * (L-1)/2 +  L + 2*( i - (L+1)*(L-2)/2) ];
-                    other_energy += S[i] * J_x[ (L+1) * (L-1)/2 +  L + 2*( i - (L+1)*(L-2)/2) +1];
+                    other_energy += S[i] * J_x[ (L+1) * (L-1)/2 +  L + 2*( i - (L+1)*(L-2)/2) -1 ];
+                    other_energy += S[i] * J_x[ (L+1) * (L-1)/2 +  L + 2*( i - (L+1)*(L-2)/2)];
                 }
             }
             other_energy = - other_energy;
@@ -228,8 +227,8 @@ void ising_sim::update() {
     if ( (PTval ==0) && ( (sweeps + 1) % pt_sweeps == 0 ) ){
 
         double current_energy = total_energy();
-        std::vector<int> other_J_x(lat_sites);
-        std::vector<int> other_J_y(lat_sites);
+        std::vector<int> other_J_x(lat_sites+2*L);
+        std::vector<int> other_J_y(lat_sites+2*L);
 
         double other_T;
         double other_p;
@@ -265,8 +264,8 @@ void ising_sim::update() {
             else if (i == (L+1)*(L-2)/2)
                 other_energy += S[i] * J_x[ (L+1)*(L-1)/2 + L ];
             else if (i > (L+1)*(L-2)/2){
-                other_energy += S[i] * J_x[ (L+1) * (L-1)/2 +  L + 2*( i - (L+1)*(L-2)/2) ];
-                other_energy += S[i] * J_x[ (L+1) * (L-1)/2 +  L + 2*( i - (L+1)*(L-2)/2) +1];
+                other_energy += S[i] * J_x[ (L+1) * (L-1)/2 +  L + 2*( i - (L+1)*(L-2)/2) -1];
+                other_energy += S[i] * J_x[ (L+1) * (L-1)/2 +  L + 2*( i - (L+1)*(L-2)/2)];
             }
 
         }
@@ -431,20 +430,20 @@ void ising_sim::load(alps::hdf5::archive & ar) {
 
 double ising_sim::local_energy(int i){
     double e = S[i] * (J_x[i]*S[lat.nb_2(i)] + J_x[lat.nb_3(i)]*S[lat.nb_3(i)] + J_y[i]*S[lat.nb_1(i)] + J_y[lat.nb_4(i)]*S[lat.nb_4(i)]);
-
-    if (i == (L+1)/2 -1)
-        e += S[i] * J_x[ (L+1) * (L-1)/2 + 2*i ];
+    if (i == (L+1)/2 -1){
+        e += S[i] * J_x[ (int)( (L+1) * (L-1)/2 + 2*i ) ];
+    }
     else if (i < (L+1)/2 -1 ){
-        e += S[i] * J_x[ (L+1) * (L-1)/2 + 2*i ];
-        e += S[i] * J_x[ (L+1) * (L-1)/2 + 2*i +1 ];
+        e += S[i] * J_x[ (int)((L+1) * (L-1)/2 + 2*i )];
+        e += S[i] * J_x[ (int)((L+1) * (L-1)/2 + 2*i +1 )];
     }
-    else if (i == (L+1)*(L-2)/2)
-        e += S[i] * J_x[ (L+1)*(L-1)/2 + L ];
+    else if (i == (L+1)*(L-2)/2){
+        e += S[i] * J_x[ (int)((L+1)*(L-1)/2 + L )];
+    }
     else if (i > (L+1)*(L-2)/2){
-        e += S[i] * J_x[ (L+1) * (L-1)/2 +  L + 2*( i - (L+1)*(L-2)/2) ];
-        e += S[i] * J_x[ (L+1) * (L-1)/2 +  L + 2*( i - (L+1)*(L-2)/2) +1];
+        e += S[i] * J_x[ (int)((L+1) * (L-1)/2 +  L + 2*( i - (L+1)*(L-2)/2) -1)];
+        e += S[i] * J_x[ (int)((L+1) * (L-1)/2 +  L + 2*( i - (L+1)*(L-2)/2) )];
     }
-
     return - e;
 }
 
@@ -462,11 +461,11 @@ double ising_sim::total_energy(){
         else if (i == (L+1)*(L-2)/2)
             E += S[i] * J_x[ (L+1)*(L-1)/2 + L ];
         else if (i > (L+1)*(L-2)/2){
+            E += S[i] * J_x[ (L+1) * (L-1)/2 +  L + 2*( i - (L+1)*(L-2)/2) -1];
             E += S[i] * J_x[ (L+1) * (L-1)/2 +  L + 2*( i - (L+1)*(L-2)/2) ];
-            E += S[i] * J_x[ (L+1) * (L-1)/2 +  L + 2*( i - (L+1)*(L-2)/2) +1];
         }
     }
-    return - E; // normalized by # spins
+    return - E;
 }
 
 double ising_sim::mag_FM() {
@@ -477,21 +476,19 @@ double ising_sim::mag_FM() {
 }
 
 void ising_sim::Heatbath(int i, double beta) {
-    if (i%L>0 && i%L < L-1){
-        double E_i = E_tot;
-        double E_f = E_i;
-        int S_i = S[i];
-        E_f += - 2*local_energy(i);
-        S[i]*= -1; 
-        double u = std::uniform_real_distribution<double>{0., 1.}(rng);
-        double alpha = std::exp( -beta*(E_f-E_i));    //Metropolis update 
-    //    double compl_prob = 1./ (1. + alpha);                 //Heat bath  update
-        if (u<alpha)
-    //    if (u > compl_prob)
-            E_tot=E_f;
-        else
-            S[i]=S_i;
-    }
+    double E_i = E_tot;
+    double E_f = E_i;
+    int S_i = S[i];
+    E_f += - 2 * local_energy(i);
+    S[i]*= -1;
+    double u = std::uniform_real_distribution<double>{0., 1.}(rng);
+    double alpha = std::exp( -beta*(E_f-E_i));    //Metropolis update 
+    double compl_prob = 1./ (1. + alpha);                 //Heat bath  update
+//    if (u<alpha)
+    if (u > compl_prob)
+        E_tot = E_f;
+    else
+        S[i] = S_i;
 }
 
 void ising_sim::overrelaxation(){
