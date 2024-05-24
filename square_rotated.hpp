@@ -34,11 +34,7 @@ class square {
 				return (i + (L+1)*(L-2)/2   ) % ((L+1)*(L-1)/2 );
 			else
 				return (i + (L+1)*(L-2)/2 -1) % ((L+1)*(L-1)/2 );
-
-
-
 		}
-
 		int nb_4(int i){		//DOWN-RIGHT
 			if (i % (L+1) == (L+1)/2 - 1)
 				return i + 1;		// must couple to something with coupling strength 0

@@ -41,7 +41,7 @@ def main():
     subname = 'subfile'                             ##Name of sub file saved after filling, used for the single replica
 
     ##Define parameters to be dictated to the .ini file
-    L = 9
+    L = 11
     disorder_max = 0.0
     disorder_min = 0.01
 
@@ -53,8 +53,8 @@ def main():
     points = np.array([T_vec,p_vec]).transpose()
 
     timelimit = 40*3600
-    therm = 3000000
-    totsweeps = 3000000
+    therm = 1000000
+    totsweeps = 1000000
     Nreplica = len(T_vec)-1
     Nbins = 500
     N_avg_p = 1

@@ -126,7 +126,6 @@ void ising_sim::update() {
         spin_config.close();
         }
 
-
         E_tot = total_energy();
     }
     // measuring relevant observables (useless in the current code version)
@@ -152,7 +151,6 @@ void ising_sim::update() {
 
     //Overrelaxation update
     overrelaxation();
-
     //Parallel tempering
     if ( (PTval > 0 ) && ( (sweeps + 1) % pt_sweeps == 0 ) ){
 
@@ -179,22 +177,21 @@ void ising_sim::update() {
 
             double other_energy = 0.;
             for(int i = 0; i < lat_sites; ++i){
-                other_energy   += J_x[i] * ( S[i] * S[lat.nb_2(i)] ) + J_y[i] * ( S[i] * S[lat.nb_1(i)] );
+                other_energy   += other_J_x[i] * ( S[i] * S[lat.nb_2(i)] ) + other_J_y[i] * ( S[i] * S[lat.nb_1(i)] );
                 if (i == (L+1)/2 -1)
-                    other_energy += S[i] * J_x[ (L+1) * (L-1)/2 + 2*i ];
+                    other_energy += S[i] * other_J_x[ (L+1) * (L-1)/2 + 2*i ];
                 else if (i < (L+1)/2 -1 ){
-                    other_energy += S[i] * J_x[ (L+1) * (L-1)/2 + 2*i ];
-                    other_energy += S[i] * J_x[ (L+1) * (L-1)/2 + 2*i +1 ];
+                    other_energy += S[i] * other_J_x[ (L+1) * (L-1)/2 + 2*i ];
+                    other_energy += S[i] * other_J_x[ (L+1) * (L-1)/2 + 2*i +1 ];
                 }
                 else if (i == (L+1)*(L-2)/2)
-                    other_energy += S[i] * J_x[ (L+1)*(L-1)/2 + L ];
+                    other_energy += S[i] * other_J_x[ (L+1)*(L-1)/2 + L ];
                 else if (i > (L+1)*(L-2)/2){
-                    other_energy += S[i] * J_x[ (L+1) * (L-1)/2 +  L + 2*( i - (L+1)*(L-2)/2) -1 ];
-                    other_energy += S[i] * J_x[ (L+1) * (L-1)/2 +  L + 2*( i - (L+1)*(L-2)/2)];
+                    other_energy += S[i] * other_J_x[ (L+1) * (L-1)/2 +  L + 2*( i - (L+1)*(L-2)/2) -1 ];
+                    other_energy += S[i] * other_J_x[ (L+1) * (L-1)/2 +  L + 2*( i - (L+1)*(L-2)/2)];
                 }
             }
             other_energy = - other_energy;
-
             double dE= other_energy - current_energy;
             return -(other_energy / other.temp  - current_energy / temp.temp);  
         });
@@ -254,18 +251,18 @@ void ising_sim::update() {
         //compute energy of current spin config with the new potential bond config
         double other_energy = 0.;
         for(int i = 0; i < lat_sites; ++i){
-            other_energy   += J_x[i] * ( S[i] * S[lat.nb_2(i)] ) + J_y[i] * ( S[i] * S[lat.nb_1(i)] );
+            other_energy   += other_J_x[i] * ( S[i] * S[lat.nb_2(i)] ) + other_J_y[i] * ( S[i] * S[lat.nb_1(i)] );
             if (i == (L+1)/2 -1)
-                other_energy += S[i] * J_x[ (L+1) * (L-1)/2 + 2*i ];
+                other_energy += S[i] * other_J_x[ (L+1) * (L-1)/2 + 2*i ];
             else if (i < (L+1)/2 -1 ){
-                other_energy += S[i] * J_x[ (L+1) * (L-1)/2 + 2*i ];
-                other_energy += S[i] * J_x[ (L+1) * (L-1)/2 + 2*i +1 ];
+                other_energy += S[i] * other_J_x[ (L+1) * (L-1)/2 + 2*i ];
+                other_energy += S[i] * other_J_x[ (L+1) * (L-1)/2 + 2*i +1 ];
             }
             else if (i == (L+1)*(L-2)/2)
-                other_energy += S[i] * J_x[ (L+1)*(L-1)/2 + L ];
+                other_energy += S[i] * other_J_x[ (L+1)*(L-1)/2 + L ];
             else if (i > (L+1)*(L-2)/2){
-                other_energy += S[i] * J_x[ (L+1) * (L-1)/2 +  L + 2*( i - (L+1)*(L-2)/2) -1];
-                other_energy += S[i] * J_x[ (L+1) * (L-1)/2 +  L + 2*( i - (L+1)*(L-2)/2)];
+                other_energy += S[i] * other_J_x[ (L+1) * (L-1)/2 +  L + 2*( i - (L+1)*(L-2)/2) -1];
+                other_energy += S[i] * other_J_x[ (L+1) * (L-1)/2 +  L + 2*( i - (L+1)*(L-2)/2)];
             }
 
         }
@@ -291,8 +288,10 @@ void ising_sim::update() {
             ofs.close();
         }
 
-        if (sweeps == thermalization_sweeps+total_sweeps -1)
-            std::cout << "Z(" << T_vec[ind] << ")/Z(" << T_vec[ind+1] << ")=" << time_in_Ti[ind]/time_in_Ti[ind+1]<< std::endl;
+        if (sweeps == thermalization_sweeps+total_sweeps -1){
+            double uncertainty = std::sqrt( time_in_Ti[ind]/std::pow(time_in_Ti[ind+1],2) + std::pow(time_in_Ti[ind],2)/std::pow(time_in_Ti[ind+1],3) ); 
+            std::cout << "Z(" << T_vec[ind] << ")/Z(" << T_vec[ind+1] << ")=" << time_in_Ti[ind]/time_in_Ti[ind+1]<< "(" << uncertainty <<")"<<std::endl;
+        }
     }
 
 
