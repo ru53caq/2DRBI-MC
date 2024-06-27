@@ -4,6 +4,7 @@ option(gcc "on" OFF)
 if(gcc)
 SET(CMAKE_C_COMPILER /usr/local/bin/gcc-9)
 SET(CMAKE_CXX_COMPILER /usr/local/bin/g++-9)
+SET(CMAKE_BUILD_TYPE "Debug")
 endif()
 
 

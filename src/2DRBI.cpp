@@ -2,13 +2,13 @@
 #include "2DRBI.hpp"
 
 // Defines the parameters for the ising simulation
-void ising_sim::define_parameters(parameters_type & parameters) {
+void ising_sim::define_parameters(parameters_type & parameters) {  // member function of class ising_sim
     // If the parameters are restored, they are already defined
     if (parameters.is_restored()) {
         return;
     }
     // Adds the parameters of the base class
-    Base::define_parameters(parameters);
+    Base::define_parameters(parameters);  // since parameters is a reference, no longer need to use & to pass it
     alps::define_convenience_parameters(parameters)
         .description("square lattice 2D RBI model simulation")                                                           
         .define<int>("L", 24, "linear size in x direction")                                                         

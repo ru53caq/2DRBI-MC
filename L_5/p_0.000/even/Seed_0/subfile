@@ -1,0 +1,19 @@
+#!/bin/bash
+#SBATCH -o out
+#SBATCH -e err
+#SBATCH -D /Users/yitan/Coding/2DRBI-MC/L_5/p_0.000/even/Seed_0
+#SBATCH -J 2DRBI_466889
+#SBATCH --get-user-env
+#SBATCH --clusters=kcs
+#SBATCH --nodes=4
+#SBATCH --ntasks-per-node=32
+#SBATCH --mail-type=end
+#SBATCH --mail-user=giovanni.canossa@physik.uni-muenchen.de
+#SBATCH --export=NONE 
+#SBATCH --time=36:10:00
+module load slurm_setup
+
+export MPIR_CVAR_CH4_OFI_TAG_BITS=31
+export MPIR_CVAR_CH4_OFI_RANK_BITS=8
+
+mpirun -n 4 ../../../../build/2DRBI 2DRBI.ini
