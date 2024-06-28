@@ -35,6 +35,11 @@ class TestPartitionFunction(unittest.TestCase):
         assert_allclose(exact_ratios, mc_ratios, rtol=1e-2)
 
     def test_pf_ratios_special_bond_config(self):
+        """
+        Notes: bond config file for MC:
+        L_5/p_0.000/even/Seed_1/config_p=0.000.data
+        Warning: This test partially fails even when tol is set to 1e-2.
+        """
         d = 5
         bc = 'even'
         z_check_matrix = surface_utils.get_z_check_matrix(d)
@@ -53,3 +58,5 @@ class TestPartitionFunction(unittest.TestCase):
                         for i in range(len(exact_pfs)-1)]
         assert_allclose(exact_ratios, mc_ratios, rtol=1e-2)
 
+if __name__ == '__main__':
+    unittest.main()
