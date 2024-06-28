@@ -64,7 +64,7 @@ ising_sim::ising_sim(parameters_type & parms, std::size_t seed_offset)
 
     initialization(initial_state);
 
-    simdir = "../L_5/p_0.000/even/Seed_0/";
+    simdir = "./";
 
     std::ifstream Tp_points(simdir + "T-p_points.data");
     int Nreps = parameters["N_replica"];

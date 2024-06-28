@@ -21,7 +21,7 @@
 2DRBI_IS_TOP_LEVEL:STATIC=ON
 
 //Value Computed by CMake
-2DRBI_SOURCE_DIR:STATIC=/Users/yitan/Coding/2DRBI-MC
+2DRBI_SOURCE_DIR:STATIC=/Users/yitan/Coding/2DRBI-MC/src/2DRBI
 
 //The directory containing a CMake configuration file for ALPSCore.
 ALPSCore_DIR:PATH=/usr/local/ALPSCore/share/ALPSCore
@@ -310,7 +310,7 @@ CMAKE_GENERATOR_TOOLSET:INTERNAL=
 CMAKE_HAVE_LIBC_PTHREAD:INTERNAL=1
 //Source directory with the top level CMakeLists.txt file for this
 // project
-CMAKE_HOME_DIRECTORY:INTERNAL=/Users/yitan/Coding/2DRBI-MC
+CMAKE_HOME_DIRECTORY:INTERNAL=/Users/yitan/Coding/2DRBI-MC/src/2DRBI
 //ADVANCED property for variable: CMAKE_INSTALL_NAME_TOOL
 CMAKE_INSTALL_NAME_TOOL-ADVANCED:INTERNAL=1
 //ADVANCED property for variable: CMAKE_LINKER

@@ -40,12 +40,6 @@ def get_parity_matrix(d,periodic=False):
         
     return parity_matrix
 
-def get_parity_matrix_z(d, parity_matrix_x, periodic=False):
-    z_stabs = []
-    for x_stab in parity_matrix_x:
-        z_stabs.append(np.fliplr(x_stab.reshape(d,d).transpose()).flatten())
-    return np.asarray(z_stabs)
-
 def get_matching_graph(d,periodic=False):
     ''' Returns matching graph for local errors. 
 

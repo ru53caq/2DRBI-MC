@@ -57,7 +57,7 @@ RM = /Applications/CMake.app/Contents/bin/cmake -E rm -f
 EQUALS = =
 
 # The top-level source directory on which CMake was run.
-CMAKE_SOURCE_DIR = /Users/yitan/Coding/2DRBI-MC
+CMAKE_SOURCE_DIR = /Users/yitan/Coding/2DRBI-MC/src/2DRBI
 
 # The top-level build directory on which CMake was run.
 CMAKE_BINARY_DIR = /Users/yitan/Coding/2DRBI-MC/build

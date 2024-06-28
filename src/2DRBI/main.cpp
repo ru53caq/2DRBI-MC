@@ -46,7 +46,7 @@ int main(int argc, char** argv)
     try {
 
         std::string simdir;
-        simdir = "../L_5/p_0.000/even/Seed_0/";
+        simdir = "./";
 
         // Creates the parameters for the simulation
         // If an hdf5 file is supplied, reads the parameters there

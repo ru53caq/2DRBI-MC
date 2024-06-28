@@ -1,4 +1,4 @@
-# Install script for directory: /Users/yitan/Coding/2DRBI-MC
+# Install script for directory: /Users/yitan/Coding/2DRBI-MC/src/2DRBI
 
 # Set the install prefix
 if(NOT DEFINED CMAKE_INSTALL_PREFIX)
