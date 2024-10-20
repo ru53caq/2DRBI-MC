@@ -19,12 +19,12 @@ endif()
 
 # find_package Eigen3 is inclued tksvm CMakeLists
 find_package(ALPSCore 2.2.0 REQUIRED)
-find_package(Threads)
+find_package(Threads REQUIRED)
 
 
 add_executable(${PROJECT_NAME} main.cpp 2DRBI.cpp)
 #add_executable(${PROJECT_NAME} main_PTfeedback.cpp Tetra_PTfeedback.cpp)
-
+target_link_libraries(2DRBI Threads::Threads)
 # Request the ALPSCore package (with all components)
 # The ALPSCore package must be installed in some
 # standard place (like /usr/local),
