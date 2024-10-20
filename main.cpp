@@ -182,6 +182,15 @@ int main(int argc, char** argv)
 		ar["/parameters/p_points"] << p_vec;
 		ar["/results/Zratios"] << ratiovec;
 		ar["/results/Zratios_unc"] << ratio_uncvec;
+
+                double ratioprod = std::accumulate(ratiovec.begin(), ratiovec.end(), 1.0, std::multiplies<double>());
+                double rel_unc_sq_sum = 0.;
+                for (size_t i = 0; i < ratiovec.size(); ++i)
+                    rel_unc_sq_sum += std::pow(ratio_uncvec[i] / ratiovec[i], 2);
+                double ratioprod_unc = ratioprod * std::sqrt(rel_unc_sq_sum);
+                ar["/results/Z_TOT"] << ratioprod;
+                ar["/results/Z_TOT_unc"] << ratioprod_unc;
+
 		
 		for (int n_sim=0;n_sim<(int) parameters["N_replica"];n_sim++){   
 		        ar["/results/" + std::to_string(n_sim) + "/T"] << T_vec[n_sim];
