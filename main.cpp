@@ -46,7 +46,7 @@ int main(int argc, char** argv)
     try {
 
         std::string simdir;
-        simdir = "../L_5/p_0.000/even/Seed_0/";
+        simdir = "./";
 
         // Creates the parameters for the simulation
         // If an hdf5 file is supplied, reads the parameters there
@@ -136,7 +136,85 @@ int main(int argc, char** argv)
         mpi::barrier(comm_world);
         
         alps::results_type<my_sim_type>::type results = alps::collect_results(sim);
-        
+
+	if (is_master){
+		alps::hdf5::archive ar("out.h5", "w");
+		std::vector<double> ratiovec;
+		std::vector<double> ratio_uncvec;
+		ratiovec.resize((int) parameters["N_replica"]);
+		std::cout << (int)parameters["N_replica"]<<std::endl;
+		ratio_uncvec.resize((int) parameters["N_replica"]);
+		for (int i=0;i<(int) parameters["N_replica"];i++){
+                        std::ostringstream oss;
+                        oss << "Ti_time_rep_" << std::to_string(i) << ".txt";
+			std::ifstream Ti_reps("Ti_time_rep_"+std::to_string(i)+".txt");
+			std::vector<int> vec;
+			vec.resize((int) parameters["N_replica"]+1);
+			std::cout << "Ti_time_rep_"+std::to_string(i)+".txt" << std::endl;
+			for (int j=0; j<(int) parameters["N_replica"]+1; j++){
+				Ti_reps >> vec[j];
+				std::cout << vec[j] << std::endl;
+			}
+			int N_1=vec[i];
+			int N_2=vec[i+1];
+			ratiovec[i] = static_cast<double>(N_1)/N_2;
+			std::cout << N_1 << " " << N_2 << " " << ratiovec[i] << std::endl;
+			ratio_uncvec[i]= std::sqrt( N_1/std::pow(N_2,2) + std::pow(N_1,2)/std::pow(N_2,3) ); 
+			Ti_reps.close();
+			ar["results/"+std::to_string(i)+"/N1"] << N_1;
+			ar["results/"+std::to_string(i)+"/N2"] << N_2;
+			ar["results/"+std::to_string(i)+"/Zratio"] << ratiovec[i];
+			ar["results/"+std::to_string(i)+"/Zratio_unc"] << ratio_uncvec[i];
+//                        std::remove(oss.str().c_str());
+		}	
+/*
+	        std::ofstream Zratios;
+		Zratios.open("Zratios.txt");
+        	for (auto & val : ratiovec)
+	            Zratios << val << " ";
+		Zratios << "\n";
+		for (auto & val : ratio_uncvec)
+		    Zratios << val << "  ";
+	        Zratios.close();
+*/	
+		ar["/parameters"] << parameters;
+		ar["/parameters/T_points"] << T_vec;
+		ar["/parameters/p_points"] << p_vec;
+		ar["/results/Zratios"] << ratiovec;
+		ar["/results/Zratios_unc"] << ratio_uncvec;
+		
+		for (int n_sim=0;n_sim<(int) parameters["N_replica"];n_sim++){   
+		        ar["/results/" + std::to_string(n_sim) + "/T"] << T_vec[n_sim];
+		        ar["/results/" + std::to_string(n_sim) + "/p"] << p_vec[n_sim];
+		
+		        //store the bond configuratio used for each p-T value simulation
+			std::ostringstream oss1;
+		    	oss1 << simdir << "config_p=" << std::fixed << std::setprecision(3) << p_vec[n_sim] << ".data";
+			std::ifstream bondconfigfile(oss1.str());
+		        std::vector<int> bondconfig;    
+			std::string line;
+			while (std::getline(bondconfigfile, line)) {
+		            std::istringstream iss(line);  // Use a string stream to parse each line
+		            int value;
+		            while (iss >> value)
+		                bondconfig.push_back(value);
+		        }
+		        ar["/results/" + std::to_string(n_sim) + "/bonds"] << bondconfig;
+		        bondconfigfile.close();
+		
+		        //store the midpoint spin configuration where Zratio sampling starts
+		        std::ostringstream oss2;
+		        oss2 << simdir << std::fixed << std::setprecision(6) << T_vec[n_sim] << ".data";
+		        std::ifstream spinconfigfile(oss2.str());
+		        std::vector<int> spinconfig((std::istream_iterator<int>(spinconfigfile)), std::istream_iterator<int>());
+		        ar["/results/" + std::to_string(n_sim) + "/spinconfig"] << spinconfig;
+		        spinconfigfile.close();
+			
+//			std::remove(oss1.str().c_str());
+//			std::remove(oss2.str().c_str());
+		}
+		ar.close();	
+	}
 /*        
         // Save results to the .out.h5 file
         {    

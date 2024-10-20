@@ -1,10 +1,13 @@
 import numpy as np
 import os
+import math
 import subprocess as sp
 import random
 from scipy.stats import bernoulli as bern
-
-
+import matplotlib
+from matplotlib import pyplot as plt
+from operator import itemgetter
+import matplotlib.ticker as mticker
 
 def replace(d):
     r = 'sed'
@@ -15,7 +18,7 @@ def replace(d):
 def main():
 
     ##Template of parameters to be dictated to the .ini file
-    param_dict={    '__L':'4',                      
+    param_dict={    '__L':'4',
                     '__disorder':'0.0',
                     '__timelimit':'200000',
                     '__seed':'12345',
@@ -34,40 +37,38 @@ def main():
 
 
 
-
     partemp = 'RBI_template.ini'                  ##Name of ini file template
-    parname = 'RBI.ini'                           ##Name of ini file saved after filling, used for the single replica
+    parname = '2DRBI.ini'                           ##Name of ini file saved after filling, used for the single replica
     subtemp = 'subfile_template'                    ##Name of sub file template
     subname = 'subfile'                             ##Name of sub file saved after filling, used for the single replica
 
     ##Define parameters to be dictated to the .ini file
-    L = 11
-    disorder_max = 0.0
-    disorder_min = 0.01
-
+    L = 5
+    disorder = 0.090                        ##Disorder value used for config generation
+    T_nishimori = 2/ math.log((1-disorder)/disorder)
+    T_Top_even= 1.160
+    T_Top_odd = 1.1601
     ##Define set of temperatures and respective disorder values
     #This will define a look-up table to keep tabs on the parameters for when replica exchanges occur
     # For how parallel tempering is implemented, temperatures must go from lowest to highest
-    T_vec = [4.,4.5, 5.0, 5.5, 6.0]
-    p_vec = [0.,0., 0.0, 0.0, 0.0]
-    points = np.array([T_vec,p_vec]).transpose()
+
 
     timelimit = 40*3600
-    therm = 1000000
-    totsweeps = 1000000
-    Nreplica = len(T_vec)-1
+    therm = 50000
+    totsweeps = 50000
+    Nreplica = 10   ##NB: we always use one extra point in p-T space compared to the number of nodes we use
     Nbins = 500
     N_avg_p = 1
 
 
     ## We try all possible initializations to verify equilibration of disorder averages
-    start_config=["even"]
+    start_config=["even","odd"]
 
     ## Path where each disorder replica will be stored
     pathformat = 'L_%d/p_%1.3f/%s/Seed_%d'
 
     ##Initialize the different seeds for each disorder replica
-    N_disorder_reps = 1
+    N_disorder_reps = 2
 
     seed_origin = random.randrange(2**20)
     rng = random.Random(seed_origin)
@@ -78,16 +79,55 @@ def main():
     count = 0
 
 
-    for init in start_config:
-        for i,Seed in enumerate(Seeds):
+
+
+    ##Initialize Lattice features and disorder configuration initializer
+
+    # Lattice parameters
+    Nx = (L+1)/2    #X-length of the lattice
+    Ny = (L-1)      #Y-length of the lattice
+    Nboundary_bonds = 2*L   # Number of boundary field terms (NONFLUCTUATING, these are not lattice sites)
+
+    lat_sites = np.intc(Nx*Ny)
+    N_bonds = 2*lat_sites - 2*Nx - (Ny-1) + Nboundary_bonds
+
+    def config_init(p,lat_sites,Nx,Ny):
+        ## Disorder bond configuration for the first p-T point
+        configuration = -1 * bern.rvs(p, size = (lat_sites + Nboundary_bonds,2)) *2 + 1
+        #Adjustment for OPEN BOUNDARY CONDITIONS: no couplings beyond the edges (set certain couplings to 0)
+        for i in range(lat_sites + Nboundary_bonds):
+            if (i >= lat_sites - Nx) & (i < lat_sites):
+                configuration[i,0] = 0         # Last row does not have Jx
+                configuration[i,1] = 0         # Last row does not have Jy
+            if ( (i% (2*Nx) ) == Nx -1) & (i < lat_sites):
+                configuration[i,0] = 0         # Right boundaries do not have Jx
+            if (i% (2*Nx) == Nx ) & (i< lat_sites):
+                configuration[i,1] = 0         # Left boundaries do not have Jy
+        for i in range(lat_sites,lat_sites + Nboundary_bonds):
+            configuration[i,1] = 0   # only 1 coupling per boundary node
+
+        configuration_disorder = np.count_nonzero(configuration<0)/(N_bonds)
+
+        return configuration,configuration_disorder
+
+
+
+    for i,Seed in enumerate(Seeds):
+
+        config_dis_0 = 0
+        config_0 = np.zeros((lat_sites,2))
+
+        config_0, config_dis_0 = config_init(disorder,lat_sites,Nx,Ny)   ##Generates random disorder configuration. 
+
+        for init in start_config:
             ##Generate path, config file and params.ini file for each iteration
 
-            replica_path = pathformat % (L,disorder_max,init,i)
+            replica_path = pathformat % (L,disorder,init,i)
             full_path = os.getcwd() + '/' + replica_path
 
             ## Dictate to .ini file
             param_dict['__L'] = '%d' % L
-            param_dict['__disorder'] = '%1.3f' % disorder_max
+            param_dict['__disorder'] = '%1.3f' % disorder
             param_dict['__timelimit'] = '%d' % timelimit
             param_dict['__therm'] = '%d' % therm
             param_dict['__totsweeps'] = '%d' % totsweeps
@@ -109,77 +149,77 @@ def main():
 
             sp.call(replace(param_dict) + '< ../../../../%s > %s' % (partemp,parname),cwd=replica_path,shell=True)
             sp.call(replace(sub_dict) + '< ../../../../%s > %s' % (subtemp,subname),cwd=replica_path,shell=True)
+
+
             #sp.call('cp ../../../../%s .' % exename,cwd=curr_path,shell=True)
 
-            ##Create disorder configuration called by the code
-            # Lattice parameters
-            Nx = (L+1)/2    #X-length of the lattice
-            Ny = (L-1)      #Y-length of the lattice
-            Nboundary_bonds = 2*L   # Number of boundary field terms (NONFLUCTUATING, these are not lattice sites)
 
-            lat_sites = np.intc(Nx*Ny)      
-            N_bonds = 2*lat_sites - 2*Nx - (Ny-1) + Nboundary_bonds 
+            ## Starting from config, remove disordered bonds to get configs for lower disorder values
+            # (whenever PT is called, the replica with the new T point will update its p value and load the corresponding disorder config)
 
+            ## Every step I have to flip N_toflip_perstep spins
+            ## Among these, I have to sprinkle the leftovers: I could just put them at the first "leftover" steps 
+            ## p will slowly decrease with constant jumps (a bit larger for the first "leftover" steps) until it reaches 0
+
+
+
+            config = np.copy(config_0)
+            config_dis = config_dis_0
+            flipped_sites = np.argwhere(config_0 < 0)
+            nonflipped_sites = np.argwhere(config_0 > 0)
+
+            Nflipped = len(flipped_sites)
+            N_toflip_perstep = np.intc((Nflipped - Nflipped%(Nreplica)) / (Nreplica) )
+            leftover = Nflipped%(Nreplica)
+
+
+            T_vec = np.ones(Nreplica+1) *T_nishimori
+            p_vec = np.zeros(Nreplica+1)
+
+            p_vec[0] = config_dis_0
+            T_vec[0] = T_nishimori             ## First point always starts on the Nishimori line point given by p
+
+            if (init == "even"):
+                for q in range(Nreplica+1):
+                    T_vec[q] = T_nishimori + (T_Top_even - T_nishimori) * q/(Nreplica)
+            if (init == "odd"):
+                config[-L:] *= -1
+                for q in range(Nreplica+1):
+                    T_vec[q] = T_nishimori + (T_Top_odd - T_nishimori) * q/(Nreplica)
+
+            np.savetxt('%s/config_p=%1.3f.data'%(replica_path,p_vec[0]),config,fmt='%1.1d')
+
+
+
+            for a in range(1,Nreplica+1):
+                for _ in range (N_toflip_perstep):
+                    fix = random.randint(0, len(flipped_sites)-1)
+                    config[flipped_sites[fix][0],flipped_sites[fix][1]] *=-1
+                    nonflipped_sites = np.vstack([ nonflipped_sites,flipped_sites[fix] ])
+                    flipped_sites = np.delete(flipped_sites,fix, axis=0)
+                    config_dis += -1/(N_bonds)
+                if (leftover>0):
+                    fix = random.randint(0, len(flipped_sites)-1)
+                    config[flipped_sites[fix][0],flipped_sites[fix][1]] *=-1
+                    nonflipped_sites = np.vstack([ nonflipped_sites,flipped_sites[fix] ])
+                    flipped_sites = np.delete(flipped_sites,fix, axis=0)
+                    config_dis += -1/(N_bonds)
+                    leftover += -1
+
+                p_vec[a] = abs(config_dis)
+                np.savetxt('%s/config_p=%1.3f.data'%(replica_path,p_vec[a]),config,fmt='%1.1d')
+
+
+            points = np.array([T_vec,p_vec]).transpose()
 
             ## Save T-p datapoints in the replica path so simulations know where to look up to
             np.savetxt('%s/T-p_points.data'%replica_path,points,fmt='%1.6f')
 
 
-            config_dis = 0
-            config = np.zeros((lat_sites,2))
-
-
-            def config_init(p,lat_sites,Nx,Ny):
-                ## Disorder bond configuration for the first p-T point
-                config = -1 * bern.rvs(p_vec[0], size = (lat_sites + Nboundary_bonds,2)) *2 + 1
-                print(lat_sites)
-                #Adjustment for OPEN BOUNDARY CONDITIONS: no couplings beyond the edges (set certain couplings to 0)
-                for i in range(lat_sites + Nboundary_bonds):
-                    if (i >= lat_sites - Nx) & (i < lat_sites):
-                        config[i,0] = 0         # Last row does not have Jx
-                        config[i,1] = 0         # Last row does not have Jy
-                    if ( (i% (2*Nx) ) == Nx -1) & (i < lat_sites):
-                        config[i,0] = 0         # Right boundaries do not have Jx
-                    if (i% (2*Nx) == Nx ) & (i< lat_sites):
-                        config[i,1] = 0         # Left boundaries do not have Jy
-                for i in range(lat_sites,lat_sites + Nboundary_bonds):
-                    config[i,1] = 0   # only 1 coupling per boundary node
-
-                config_dis = np.count_nonzero(config<0)/(N_bonds)  
-
-                return config,config_dis
-
-            config, config_dis = config_init(p_vec[0],lat_sites,Nx,Ny)
-            while(config_dis < p_vec[0]-1e-6):
-                config, config_dis = config_init(p,lat_sites,Nx,Ny)
-
-            flipped_sites = np.argwhere(config < 0)
-            nonflipped_sites = np.argwhere(config > 0)
-            ## Starting from config, remove disordered bonds to get configs for lower disorder values
-            # (whenever PT is called, the replica with the new T point will update its p value and load the corresponding disorder config)
-            for a,p in enumerate(p_vec):
-                if a>0:
-                    if (p_vec[a]<p_vec[a-1]):
-                        while (config_dis>p+1e-6):
-                            fix = random.randint(0, len(flipped_sites)-1)
-                            config[flipped_sites[fix][0],flipped_sites[fix][1]] *=-1
-                            nonflipped_sites = np.vstack([ nonflipped_sites,flipped_sites[fix] ])
-                            flipped_sites = np.delete(flipped_sites,fix, axis=0)
-                            config_dis += -1/(N_bonds)
-
-                    if (p_vec[a]>p_vec[a-1]):
-                        while (config_dis<p-1e-6):
-                            fix = random.randint(0, len(nonflipped_sites)-1)
-                            config[nonflipped_sites[fix][0],nonflipped_sites[fix][1]] *=-1
-                            flipped_sites = np.vstack([ flipped_sites,nonflipped_sites[fix] ])
-                            nonflipped_sites = np.delete(nonflipped_sites,fix, axis=0)
-                            config_dis += 1/(N_bonds)
-                np.savetxt('%s/config_p=%1.3f.data'%(replica_path,p),config,fmt='%1.1d')
 
 
 ##      UNCOMMENT THESE LINES TO RUN BATCH JOBS ON CLUSTER
-#            sp.call('sbatch subfile',cwd=replica_path,shell=True)
-#            sp.call('sbatch subfile',cwd=replica_path,shell=True)
+            sp.call('sbatch subfile',cwd=replica_path,shell=True)
         count +=1
 
 if __name__ == "__main__":

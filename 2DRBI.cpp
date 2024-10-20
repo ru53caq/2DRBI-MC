@@ -64,7 +64,7 @@ ising_sim::ising_sim(parameters_type & parms, std::size_t seed_offset)
 
     initialization(initial_state);
 
-    simdir = "../L_5/p_0.000/even/Seed_0/";
+    simdir = "./";
 
     std::ifstream Tp_points(simdir + "T-p_points.data");
     int Nreps = parameters["N_replica"];
@@ -127,6 +127,8 @@ void ising_sim::update() {
         }
 
         E_tot = total_energy();
+
+        std::cout << PTval << std::endl;
     }
     // measuring relevant observables (useless in the current code version)
     if (sweeps % measuring_sweeps == 0) // placed before update
@@ -287,8 +289,7 @@ void ising_sim::update() {
                 ofs << val << " ";
             ofs.close();
         }
-
-        if (sweeps == thermalization_sweeps+total_sweeps -1){
+	if (sweeps == thermalization_sweeps+total_sweeps -1){
             double uncertainty = std::sqrt( time_in_Ti[ind]/std::pow(time_in_Ti[ind+1],2) + std::pow(time_in_Ti[ind],2)/std::pow(time_in_Ti[ind+1],3) ); 
             std::cout << "Z(" << T_vec[ind] << ")/Z(" << T_vec[ind+1] << ")=" << time_in_Ti[ind]/time_in_Ti[ind+1]<< "(" << uncertainty <<")"<<std::endl;
         }
