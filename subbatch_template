@@ -1,0 +1,57 @@
+#!/bin/bash
+#SBATCH -J cycle_jobs
+#SBATCH --get-user-env
+#SBATCH --clusters=kcs
+#SBATCH --nodes=1
+#SBATCH --ntasks-per-node=10
+#SBATCH --mail-type=end
+#SBATCH --mail-user=giovanni.canossa@physik.uni-muenchen.de
+#SBATCH --export=NONE 
+#SBATCH --time=__hour:10:00
+odule load slurm_setup
+
+export MPIR_CVAR_CH4_OFI_TAG_BITS=31
+export MPIR_CVAR_CH4_OFI_RANK_BITS=8
+
+parent_dir="./L_5/p_0.100"
+
+# Number of seed directories
+seed_i=__seed_i
+seed_f=__seed_f  # Adjust this number according to how many seed folders you have
+
+
+# Loop through each "seed_X" directory
+for var in "even" "odd"; do
+	for ((i=seed_i; i<seed_f; i++)); do
+	    seed_dir="${parent_dir}/${var}/Seed_${i}"
+    
+	    if [ -d "$seed_dir" ]; then  # Check if the directory exists
+        	cd "$seed_dir"  # Change to the seed directory
+
+	        ini_file="2DRBI.ini"
+	        if [ -f "$ini_file" ]; then  # Check if the ini file exists
+	            echo "Running simulation in $seed_dir"
+            
+	            # Define dynamic output and error file names
+	            output_file="out"
+	            error_file="err"
+
+	            # Run the simulation and save output files in the respective folder
+	            echo "1" > "PTval.txt"
+	            mpirun -n 10 ../../../../build/2DRBI "$ini_file" > "$output_file" 2> "$error_file"
+	            echo "0" > "PTval.txt"
+        	    mpirun -n 10 ../../../../build/2DRBI "$ini_file" >> "$output_file" 2>> "$error_file"
+		    rm "PTval.txt"	    
+		    find "." -type f -name "*Ti_time*" -exec rm -f {} \;
+                    find "." -type f -name "*.data*" -exec rm -f {} \;
+                    find "." -type f -name "*config*" -exec rm -f {} \;
+		    echo "Finished simulation in $seed_dir"
+        	else
+            	    echo "No ini file found in $seed_dir/2DRBI.ini , skipping..."
+        	fi
+		cd ../../../../
+    	else
+        	echo "Directory $seed_dir does not exist, skipping..."
+    	fi
+	done
+done
