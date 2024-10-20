@@ -142,7 +142,6 @@ int main(int argc, char** argv)
 		std::vector<double> ratiovec;
 		std::vector<double> ratio_uncvec;
 		ratiovec.resize((int) parameters["N_replica"]);
-		std::cout << (int)parameters["N_replica"]<<std::endl;
 		ratio_uncvec.resize((int) parameters["N_replica"]);
 		for (int i=0;i<(int) parameters["N_replica"];i++){
                         std::ostringstream oss;
@@ -150,15 +149,15 @@ int main(int argc, char** argv)
 			std::ifstream Ti_reps("Ti_time_rep_"+std::to_string(i)+".txt");
 			std::vector<int> vec;
 			vec.resize((int) parameters["N_replica"]+1);
-			std::cout << "Ti_time_rep_"+std::to_string(i)+".txt" << std::endl;
+//			std::cout << "Ti_time_rep_"+std::to_string(i)+".txt" << std::endl;
 			for (int j=0; j<(int) parameters["N_replica"]+1; j++){
 				Ti_reps >> vec[j];
-				std::cout << vec[j] << std::endl;
+//				std::cout << vec[j] << std::endl;
 			}
 			int N_1=vec[i];
 			int N_2=vec[i+1];
 			ratiovec[i] = static_cast<double>(N_1)/N_2;
-			std::cout << N_1 << " " << N_2 << " " << ratiovec[i] << std::endl;
+//			std::cout << N_1 << " " << N_2 << " " << ratiovec[i] << std::endl;
 			ratio_uncvec[i]= std::sqrt( N_1/std::pow(N_2,2) + std::pow(N_1,2)/std::pow(N_2,3) ); 
 			Ti_reps.close();
 			ar["results/"+std::to_string(i)+"/N1"] << N_1;
