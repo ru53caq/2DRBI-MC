@@ -1,0 +1,67 @@
+#!/bin/bash
+#SBATCH -J cycle_jobs
+#SBATCH --get-user-env
+#SBATCH --clusters=kcs
+#SBATCH --nodes=1
+#SBATCH --ntasks-per-node=20    # Adjust based on your needs
+#SBATCH --mail-type=end
+#SBATCH --mail-user=giovanni.canossa@physik.uni-muenchen.de
+#SBATCH --export=NONE 
+#SBATCH --time=30:00:00
+#SBATCH --output=/dev/null
+#SBATCH --error=/dev/null
+
+module load slurm_setup
+module load python
+
+# Define constants
+L=13
+disorder=0.110
+timelimit=200000
+therm=100000
+totsweeps=100000
+Nreplica=$SLURM_NTASKS_PER_NODE
+Nbins=500
+
+
+N_disorder_reps=500
+
+# Path format for replica storage
+pathformat='L_%d/p_%1.3f/%s/Seed_%d'
+
+
+# Initialize random seeds
+Seeds=$(shuf -i 1-1000000 -n $N_disorder_reps)
+echo "Seeds: ${Seeds[@]}"
+
+
+# Loop over seeds
+for i in "${!Seeds[@]}"; do
+    Seed=${Seeds[$i]}
+
+    for init in "even" "odd"; do
+
+        # Create directory structure
+        replica_path=$(printf "$pathformat" "$L" "$disorder" "$init" "$Seed")
+        mkdir -p "$replica_path"
+
+        # Generate configuration and disorder value
+        python /path/to/your/python_script.py --L "$L" --disorder "$disorder" --timelimit "$timelimit" --Seed "$Seed" --init "$init"
+
+        # Navigate to the simulation directory
+        cd "$replica_path"
+
+        # Run the simulation using mpirun
+        echo "Running simulation in $(pwd)"
+##        mpirun -n $Nreplica ../../../../build/2DRBI "2DRBI.ini"
+
+        # Cleanup
+##        rm "2DRBI.ini"
+##        find "." -type f -name "*config*" -exec rm -f {} \;
+##        find "." -type f -name "*data*" -exec rm -f {} \;
+
+        # Navigate back to root directory
+        cd "$OLDPWD"
+
+    done
+done
