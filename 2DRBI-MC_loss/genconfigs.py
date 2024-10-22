@@ -79,7 +79,7 @@ def main():
 
     def config_init(p,lat_sites,Nx,Ny):
         ## Disorder bond configuration for the first p-T point
-        configuration = -1 * bern.rvs(p, size = (lat_sites + Nboundary_bonds,2)) *2 + 1
+        configuration = -1 * bern.rvs(disorder, size = (lat_sites + Nboundary_bonds,2)) *2 + 1
         #Adjustment for OPEN BOUNDARY CONDITIONS: no couplings beyond the edges (set certain couplings to 0)
         for i in range(lat_sites + Nboundary_bonds):
             if (i >= lat_sites - Nx) & (i < lat_sites):
@@ -112,7 +112,7 @@ def main():
         os.makedirs(replica_path)
     except:
         pass
-    sp.call(replace(param_dict) + '< ../../../../%s > %s' % (partemp,parname),cwd=replica_path,shell=True)
+    sp.call(replace(param_dict) + '< ../../../%s > %s' % (partemp,parname),cwd=replica_path,shell=True)
 
 
     T_vec = np.zeros(Nreplica)
