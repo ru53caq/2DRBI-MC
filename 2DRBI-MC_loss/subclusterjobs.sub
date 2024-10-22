@@ -52,7 +52,7 @@ for i in "${!Seeds[@]}"; do
 #        echo "1" > "PTval.txt"
 #        mpirun -n $Nreplica ../../../../build/2DRBI "2DRBI.ini"
 #        echo "0" > "PTval.txt"
-    mpirun -n $Nreplica ../../../../build/2DRBI "2DRBI.ini"
+    mpirun -n $Nreplica ../../../build/2DRBI "2DRBI.ini"
 #        rm "PTval.txt"
 #        find "." -type f -name "*Ti_time*" -exec rm -f {} \;
 #        find "." -type f -name "*.data*" -exec rm -f {} \;
