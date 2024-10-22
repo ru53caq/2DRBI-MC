@@ -28,7 +28,8 @@ def main():
     parser.add_argument('--Nreplica', type=int, required=True, help='Number_of_reps_per_disorder_config')
     parser.add_argument('--Nbins', type=int, required=True, help='Number_of_histogram_bins')
     parser.add_argument('--Seed', type=int, required=True, help='Random seed')
-    parser.add_argument('--init', type=str, choices=['even', 'odd'], required=True, help='Initialization (even/odd)')
+    parser.add_argument('--init', type=str, choices=['even', 'odd','0dis'], required=True, help='Initialization (even/odd/0dis)')
+    parser.add_argument('--replica_path', type=str, required=True, help='path_to_replica_folder')
     args = parser.parse_args()
 
     ##Template of parameters to be dictated to the .ini file
@@ -56,6 +57,16 @@ def main():
     ##Define parameters to be dictated to the .ini file
     #    L = 500                            GIVEN
     #    disorder     =  0.100              GIVEN   
+    L = args.L
+    disorder = args.disorder
+    timelimit = args.timelimit
+    therm=args.therm
+    totsweeps=args.totsweeps
+    Nreplica=args.Nreplica
+    Nbins=args.Nbins
+    Seed = args.Seed
+    init = args.init
+    replica_path = args.replica_path
 
     disorder_str =  "%.3f"% disorder
     T_nishimori = 2/ math.log((1-disorder)/disorder)
@@ -68,7 +79,7 @@ def main():
     #    Nbins = 500            GIVEN
 
     ## Path where each disorder replica will be stored
-    pathformat = 'L_%d/p_%1.3f/%s/Seed_%d'
+##    pathformat = 'L_%d/p_%1.3f/%s/Seed_%d'
 
     ##Initialize the different seeds for each disorder replica
     ##    N_disorder_reps = 600     GIVEN
@@ -92,8 +103,6 @@ def main():
     config_dis_0=0
     config_0 = np.zeros((lat_sites,2))
 
-    config_0, config_dis_0 = config_init(disorder,lat_sites,Nx,Ny)   ##Generates random disorder configuration. 
-
     def config_init(p,lat_sites,Nx,Ny):
         ## Disorder bond configuration for the first p-T point
         configuration = -1 * bern.rvs(p, size = (lat_sites + Nboundary_bonds,2)) *2 + 1
@@ -114,7 +123,7 @@ def main():
 
     config_0, config_dis_0 = config_init(disorder,lat_sites,Nx,Ny)   ##Generates random disorder configuration. 
 
-    replica_path = pathformat % (L,disorder,init,i)
+##    replica_path = pathformat % (L,disorder,init,i)
     full_path = os.getcwd() + '/' + replica_path
 
     ## Dictate to .ini file
@@ -132,6 +141,7 @@ def main():
         os.makedirs(replica_path)
     except:
         pass
+    print(replica_path)
 
     sp.call(replace(param_dict) + '< ../../../../%s > %s' % (partemp,parname),cwd=replica_path,shell=True)
 
@@ -159,29 +169,64 @@ def main():
         for q in range(Nreplica+1):
             T_vec[q] = T_nishimori + (T_Top_odd - T_nishimori) * q/(Nreplica)
 
-    np.savetxt('%s/config_p=%1.3f.data'%(replica_path,p_vec[0]),config,fmt='%1.1d')
+    if (init == "0dis"):
+        config = config*config
+        for q in range(Nreplica+1):
+            T_vec[q] = T_Top_even + (T_Top_odd - T_Top_even) * q/(Nreplica)
+        p_vec[0]=0.0
+        config_dis = 0
+        config_dis_0=0
+    filename = '%s/config_p=%1.3f.data'%(replica_path,p_vec[0])
+    np.savetxt(filename,config,fmt='%1.1d')
 
-    for a in range(1,Nreplica+1):
-        for _ in range (N_toflip_perstep):
-            fix = random.randint(0, len(flipped_sites)-1)
-            config[flipped_sites[fix][0],flipped_sites[fix][1]] *=-1
-            nonflipped_sites = np.vstack([ nonflipped_sites,flipped_sites[fix] ])
-            flipped_sites = np.delete(flipped_sites,fix, axis=0)
-            config_dis += -1/(N_bonds)
-        if (leftover>0):
-            fix = random.randint(0, len(flipped_sites)-1)
-            config[flipped_sites[fix][0],flipped_sites[fix][1]] *=-1
-            nonflipped_sites = np.vstack([ nonflipped_sites,flipped_sites[fix] ])
-            flipped_sites = np.delete(flipped_sites,fix, axis=0)
-            config_dis += -1/(N_bonds)
-            leftover += -1
+    if (init != "0dis"):
+        for a in range(1,Nreplica+1):
+            for _ in range (N_toflip_perstep):
+                fix = random.randint(0, len(flipped_sites)-1)
+                config[flipped_sites[fix][0],flipped_sites[fix][1]] *=-1
+                nonflipped_sites = np.vstack([ nonflipped_sites,flipped_sites[fix] ])
+                flipped_sites = np.delete(flipped_sites,fix, axis=0)
+                config_dis += -1/(N_bonds)
+            if (leftover>0):
+                fix = random.randint(0, len(flipped_sites)-1)
+                config[flipped_sites[fix][0],flipped_sites[fix][1]] *=-1
+                nonflipped_sites = np.vstack([ nonflipped_sites,flipped_sites[fix] ])
+                flipped_sites = np.delete(flipped_sites,fix, axis=0)
+                config_dis += -1/(N_bonds)
+                leftover += -1
 
-        p_vec[a] = abs(config_dis)
-        np.savetxt('%s/config_p=%1.3f.data'%(replica_path,p_vec[a]),config,fmt='%1.1d')
+            p_vec[a] = abs(config_dis)
+            filename = '%s/config_p=%1.3f.data'%(replica_path,p_vec[a])
+            np.savetxt(filename,config,fmt='%1.1d')
+    else:
+        flipped_sites = []
+        nonflipped_sites = np.arange(lat_sites + L, lat_sites + 2*L).tolist()
+        Ntoflip = L
+        N_toflip_perstep = np.intc((Ntoflip - Ntoflip%(Nreplica)) / (Nreplica) )
+        leftover = Ntoflip%(Nreplica)
+        for a in range(1,Nreplica+1):
+            for _ in range (N_toflip_perstep):
+                fix = random.choice(nonflipped_sites)
+                config[np.intc(fix),0] *=-1
+                flipped_sites.append(fix)
+                nonflipped_sites.remove(fix)
+                config_dis += 1/(N_bonds)
+            if (leftover>0):
+                fix = random.choice(nonflipped_sites)
+                config[np.intc(fix),0] *=-1
+                flipped_sites.append(fix)
+                nonflipped_sites.remove(fix)
+                config_dis += 1/(N_bonds)
+                leftover += -1
 
+            p_vec[a] = abs(config_dis)
+            filename = '%s/config_p=%1.3f.data'%(replica_path,p_vec[a])
+            np.savetxt(filename,config,fmt='%1.1d')
 
     points = np.array([T_vec,p_vec]).transpose()
 
     ## Save T-p datapoints in the replica path so simulations know where to look up to
-    np.savetxt('%s/T-p_points.data'%replica_path,points,fmt='%1.6f')
-
+    TPfilename = '%s/T-p_points.data'%replica_path
+    np.savetxt(TPfilename,points,fmt='%1.6f')
+if __name__ == "__main__":
+    main()

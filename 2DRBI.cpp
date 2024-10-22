@@ -1,6 +1,7 @@
 #include <alps/params/convenience_params.hpp>
 #include "2DRBI.hpp"
-
+#include "mpi.hpp"
+#include <iostream>
 // Defines the parameters for the ising simulation
 void ising_sim::define_parameters(parameters_type & parameters) {
     // If the parameters are restored, they are already defined
@@ -65,25 +66,29 @@ ising_sim::ising_sim(parameters_type & parms, std::size_t seed_offset)
     initialization(initial_state);
 
     simdir = "./";
+    simdir = "../L_5/p_0.000/even/Seed_0/";
 
     std::ifstream Tp_points(simdir + "T-p_points.data");
-    int Nreps = parameters["N_replica"];
-    T_vec.resize(Nreps+1);
-    p_vec.resize(Nreps+1);
-    time_in_Ti.resize(Nreps+1);
+    N_replica = parameters["N_replica"];
+    T_vec.resize(Nreplica+1);
+    p_vec.resize(Nreplica+1);
+    time_in_Ti.resize(Nreplica+1);
     for (int i=0; i<T_vec.size(); i++){
         Tp_points >> T_vec[i];
         Tp_points >> p_vec[i];
     }
     Tp_points.close();
 
+//  Prepare the J configs for this replica and the next; will speed up Zratio swaps
+    this_J_x.resize(lat_sites+2*L);
+    this_J_y.resize(lat_sites+2*L);
+    next_J_x.resize(lat_sites+2*L);
+    next_J_y.resize(lat_sites+2*L);
+    
 
-    //PT ACCEPTANCE RATIO
+/*
+    //PT ACCEPTANCE RATIO [NOT ACTUALLY USED]
     measurements() << alps::accumulators::FullBinningAccumulator<double>("Acceptance");
-
-    // likelihood of having even boundary conditions (complementary is odd)
-//    measurements() << alps::accumulators::FullBinningAccumulator<double>("is_even");
-
     op_names = parsing_op(orders);
     for (std::string op : op_names){
         measurements()
@@ -92,67 +97,78 @@ ising_sim::ising_sim(parameters_type & parms, std::size_t seed_offset)
         << alps::accumulators::FullBinningAccumulator<double>(op + "^4")
         << alps::accumulators::MeanAccumulator<std::vector<double>>(op + "_Hist");
     }
+*/
 }
 
 
 void ising_sim::update() {
-    //Loading p-value given T, importing the bond configuration and, if necessary, import spin configuration
     if (sweeps == 0){
-
+//      Each replica starts at a given T,p, loads PTval, (T,p) and (T+1,p+1) with respective J_x,J_y configs
+//      Simulation switches between UP= true to say we are in (T,p), up=False to say we are in (T+1,p+1)
         std::ifstream PTvalue(simdir + "PTval.txt");
         PTvalue >> PTval;
         PTvalue.close();
-
-        T=temp.temp;     //Each replica starts at a given T,p
         up = true;      
-        auto it = std::find(T_vec.begin(), T_vec.end(), temp.temp);
-        ind = std::distance( T_vec.begin(), it);    //ind contains the index of the current T-p point
-        N_core = ind;
-        
+
+        MPI_Comm_rank(MPI_COMM_WORLD, &N_core);
+        ind = N_core;
+        this_p = p_vec[ind];
+        this_T = T_vec[ind];
+        next_p = p_vec[ind+1];
+        next_T = T_vec[ind+1];
+
+        T=temp.temp;     
         p = p_vec[ind];
-        std::string p_str = (std::to_string(p)).substr(0,5); 
+
+        std::ostringstream out;
+        out << std::fixed << std::setprecision(3) << p;
+        std::string p_str = out.str(); 
         std::ifstream disorder_config(simdir + "config_p=" + p_str + ".data");
         for (int i=0; i<J_x.size(); i++){
             disorder_config >> J_x[i];
             disorder_config >> J_y[i];
-        }
+            this_J_x[i] = J_x[i];
+    	    this_J_y[i] = J_y[i];
+    	}
         disorder_config.close();
 
-        //In case of Zratio calculation, reload the final spin configuration available
-        if (PTval ==0){
-            std::ifstream spin_config(simdir + std::to_string(T)+ ".data");
-            for (int i=0; i<S.size(); i++)
-                spin_config >> S[i];
-        spin_config.close();
+        std::ostringstream next_out;
+        next_out << std::fixed << std::setprecision(3) << next_p;
+        std::string next_p_str =next_out.str(); 
+        std::ifstream next_disorder_config(simdir + "config_p=" + next_p_str + ".data");
+        for (int i=0; i<J_x.size(); i++){
+            next_disorder_config >> next_J_x[i];
+            next_disorder_config >> next_J_y[i];
         }
+        next_disorder_config.close();
+    // IN CASE OF ZRATIO CALCULATION, PRELOAD THE OTHER Z CONFIGURATION
+//	FOR NOW WE SKIP THE CONFIG GENERATION STEP: WE WILL THERMALIZE IN THE MAIN SIMULATION
+	//In case of Zratio calculation, reload the final spin configuration available
+//        if (PTval ==0){
+//            std::ifstream spin_config(simdir + std::to_string(T)+ ".data");
+//            for (int i=0; i<S.size(); i++)
+//                spin_config >> S[i];
+//        spin_config.close();
+//        }
+
 
         E_tot = total_energy();
-
-        std::cout << PTval << std::endl;
-    }
+   }
     // measuring relevant observables (useless in the current code version)
+
     if (sweeps % measuring_sweeps == 0) // placed before update
         record_measurement();
 
 
-    double beta = 1./T;//temp.temp;
-
-/*
-    //TESTING LATTICE STRUCTURE
-    for (int i = 0; i < lat_sites; ++i){
-        std::cout << "site " << i <<" couples with\n" << "\t" <<lat.nb_3(i)<<",  J="<<J_x[lat.nb_3(i)] << "\n" <<  
-                                                "\t" <<lat.nb_4(i)<<",  J="<<J_y[lat.nb_4(i)] << "\n" <<  
-                                                "\t" <<lat.nb_1(i)<<",  J="<<J_y[i] << "\n" <<  
-                                                "\t" <<lat.nb_2(i)<<",  J="<<J_x[i] << "\n\n";
-    }
-*/
+    double beta = 1./T;    // USE temp.temp in case of no embarassing parallelization;
 
     //Heatbath update
     for (int i = 0; i < lat_sites; ++i)
         Heatbath(random_site(rng), beta);
-
     //Overrelaxation update
     overrelaxation();
+
+/*  //NO USE OF PT IS EVER REQUIRE IF WE SKIP THE THERMALIZING PROCEDURE
     //Parallel tempering
     if ( (PTval > 0 ) && ( (sweeps + 1) % pt_sweeps == 0 ) ){
 
@@ -220,35 +236,32 @@ void ising_sim::update() {
         }
 
     }
+*/
 
-
+    // ADDED THE CONDITION OF HAVING SWEEPS>THERMALIZATION_SWEEPS: THIS IS ONLY TRUE WHEN NO CONFIGURATION IS FED INITIALLY
     //embarassingly parallel movement between the initial p-T point and its neighbour 
-    if ( (PTval ==0) && ( (sweeps + 1) % pt_sweeps == 0 ) ){
+    if ( (PTval ==0) && (sweeps>thermalization_sweeps) && ( (sweeps + 1) % 10 == 0 ) ){
 
         double current_energy = total_energy();
         std::vector<int> other_J_x(lat_sites+2*L);
         std::vector<int> other_J_y(lat_sites+2*L);
-
         double other_T;
         double other_p;
 
         if (up){
             time_in_Ti[ind] +=1;
-            other_T = T_vec[ind+1];
-            other_p = p_vec[ind+1];
-        }
+    	    other_T = next_T;
+    	    other_p = next_p;
+    	    other_J_x = next_J_x;
+    	    other_J_y = next_J_y;
+   	}
         else{
             time_in_Ti[ind+1] +=1;
-            other_T = T_vec[ind];
-            other_p = p_vec[ind];
-        }
-        std::string other_p_str = (std::to_string(other_p)).substr(0,5); 
-        std::ifstream conf(simdir + "config_p=" + other_p_str + ".data");
-        for (int i=0; i<J_x.size(); i++){
-            conf >> other_J_x[i];
-            conf >> other_J_y[i];
-        }
-        conf.close();
+    	    other_T = this_T;
+    	    other_p = this_p;
+    	    other_J_x = this_J_x;
+    	    other_J_y = this_J_y;
+	}
 
         //compute energy of current spin config with the new potential bond config
         double other_energy = 0.;
@@ -283,35 +296,23 @@ void ising_sim::update() {
         }
 
         // Checkpoint the amount of times each p-T point has been visited
-        if ( ( (sweeps + 1) % (100*pt_sweeps) == 0 ) ){
+        if ( ( (sweeps + 1) % (1000*pt_sweeps) == 0 ) ){
             std::ofstream ofs("Ti_time_rep_"+std::to_string(N_core) + ".txt");
             for (auto & val : time_in_Ti)
                 ofs << val << " ";
             ofs.close();
         }
-	if (sweeps == thermalization_sweeps+total_sweeps -1){
-            double uncertainty = std::sqrt( time_in_Ti[ind]/std::pow(time_in_Ti[ind+1],2) + std::pow(time_in_Ti[ind],2)/std::pow(time_in_Ti[ind+1],3) ); 
-            std::cout << "Z(" << T_vec[ind] << ")/Z(" << T_vec[ind+1] << ")=" << time_in_Ti[ind]/time_in_Ti[ind+1]<< "(" << uncertainty <<")"<<std::endl;
-        }
     }
-
 
     ++sweeps;
-
-    //In case of Zratio calculation, reload the final spin configuration available
-    if ( (sweeps% (100*pt_sweeps) ==0)  && (sweeps>thermalization_sweeps) && (PTval == 1 )){
-        std::ofstream spin_config(std::to_string(T) + ".data");
-        for (int i=0; i<S.size(); i++)
-            spin_config << S[i] << "\n";
-    spin_config.close();
-    }
 }
 
-// Collects the measurements
+// Collects the measurements; NOT NEEDED IN OUR MINIMAL CASE
 void ising_sim::measure() {
-    if (sweeps < thermalization_sweeps && (sweeps+1) != measuring_sweeps || ((sweeps+1) % measuring_sweeps !=0))
+//    if (sweeps < thermalization_sweeps && (sweeps+1) != measuring_sweeps || ((sweeps+1) % measuring_sweeps !=0))
+    if (sweeps > -5)
         return;
-
+/*
     Nmeas +=1;
     measurements()["Acceptance"] << pt_checker;
 
@@ -342,6 +343,7 @@ void ising_sim::measure() {
         measurements()[op + "^4"] << op_value * op_value* op_value * op_value;
         measurements()[op + "_Hist"] << OP_Hist;
     }
+*/
 }
 
 // Returns a number between 0.0 and 1.0 with the completion percentage
@@ -352,6 +354,9 @@ double ising_sim::fraction_completed() const {
     if (sweeps> thermalization_sweeps + total_sweeps){
         f=1.;
     }
+    if (geweke = 1)
+        f=1.;
+
     return f;
 }
 
@@ -502,47 +507,8 @@ void ising_sim::overrelaxation(){
 }
 
 void ising_sim::initialization(std::string str) {
-    if (str== "Hot&Cold"){
-        int m = (std::bernoulli_distribution{}(rng) ? 1 : -1);
-        if (m==1){
-            for (auto & v : S)
-                v=1;      
-        }
-        else{
-            for (auto & v : S)
-                v = (std::bernoulli_distribution{}(rng) ? 1 : -1);   
-        }
-    }
-    else if (str== "Cold"){
-        for (auto & v : S)
-            v=1;
-    }
-    else{
-        for (auto & v : S)
-            v = (std::bernoulli_distribution{}(rng) ? 1 : -1);
-    }
-
-    // Fix spins at the x-edges to be 1/1 for even BC and 1/-1 for odd BC 
-    if (str == "even"){
-        for (auto & v : S)
-            v = (std::bernoulli_distribution{}(rng) ? 1 : -1);
-        for (int i=0; i < lat_sites ; i++){
-            if (i%L == 0)
-                S[i] = 1;
-            if (i%L == L-1)
-                S[i] = 1;
-        }
-    }
-    if (str == "odd"){
-        for (auto & v : S)
-            v = (std::bernoulli_distribution{}(rng) ? 1 : -1);
-        for (int i=0; i < lat_sites ; i++){
-            if (i%L == 0)
-                S[i] = 1;
-            if (i%L == L-1)
-                S[i] = -1;
-        }
-    }
+    for (auto & v : S)
+        v = (std::bernoulli_distribution{}(rng) ? 1 : -1);
 }
 
 std::vector<std::string> ising_sim::parsing_op(std::string str) {

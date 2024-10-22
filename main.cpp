@@ -24,6 +24,7 @@
 #include <string>
 #include <tuple>
 #include <vector>
+#include <time.h>
 
 #include <alps/hdf5.hpp>
 #include <alps/params.hpp>
@@ -34,20 +35,19 @@
 
 int main(int argc, char** argv)
 {
+    double t1 = (double)clock();
+
     // Define the type for the simulation
     typedef ising_sim my_sim_type;
-    using temperature = phase_space_point::temperature;
-    
+    using temperature = phase_space_point::temperature;    
     mpi::environment env(argc, argv, mpi::environment::threading::multiple);
     mpi::communicator comm_world;
-
     const bool is_master = (comm_world.rank() == 0);
-
     try {
 
         std::string simdir;
         simdir = "./";
-
+        simdir = "../L_5/p_0.000/even/Seed_0/";
         // Creates the parameters for the simulation
         // If an hdf5 file is supplied, reads the parameters there
         if (is_master){
@@ -89,11 +89,12 @@ int main(int argc, char** argv)
             std::cout << "Restoring checkpoint from " << checkpoint_file << std::endl;
             sim.load(checkpoint_file);
         }
+
+        // SET SIMULATION PARAMETERS
         int L = parameters["L"];
         double dis = parameters["disorder"];
         std::string init_state = parameters["initial_state"];
         std::ifstream Tp_points(simdir+"T-p_points.data");
-
         std::vector<double> T_vec;
         std::vector<double> p_vec;
         T_vec.resize(std::size_t((int) parameters["N_replica"]+1));
@@ -105,19 +106,17 @@ int main(int argc, char** argv)
         Tp_points.close();
 
 
-
+        // SETTING TEMPERATURE POINTS OF EACH REPLICA
         auto this_temp = [&parameters, &T_vec](size_t i, size_t N) -> temperature {
             return T_vec[i];
         }(comm_world.rank(), comm_world.size());
 
-
-
-
+        // RESTORE PREVIOUS SIMULATION PARAMETERS (JUST IN CASE WE RELOAD)
         if(!parameters.is_restored() )
             sim.reset_sweeps(!sim.update_phase_point(this_temp));            
         sim.update_phase_point(this_temp);
 
-
+        //Running simulation
         bool finished = sim.run(alps::stop_callback(size_t(parameters["timelimit"])));
 
 
@@ -139,62 +138,48 @@ int main(int argc, char** argv)
 
 	if (is_master){
 		alps::hdf5::archive ar("out.h5", "w");
+
+        // COMPUTE AND STORE ZRATIOS FOR EACH REPLICA
 		std::vector<double> ratiovec;
 		std::vector<double> ratio_uncvec;
 		ratiovec.resize((int) parameters["N_replica"]);
 		ratio_uncvec.resize((int) parameters["N_replica"]);
 		for (int i=0;i<(int) parameters["N_replica"];i++){
-                        std::ostringstream oss;
-                        oss << "Ti_time_rep_" << std::to_string(i) << ".txt";
 			std::ifstream Ti_reps("Ti_time_rep_"+std::to_string(i)+".txt");
 			std::vector<int> vec;
 			vec.resize((int) parameters["N_replica"]+1);
-//			std::cout << "Ti_time_rep_"+std::to_string(i)+".txt" << std::endl;
-			for (int j=0; j<(int) parameters["N_replica"]+1; j++){
+			for (int j=0; j<(int) parameters["N_replica"]+1; j++)
 				Ti_reps >> vec[j];
-//				std::cout << vec[j] << std::endl;
-			}
 			int N_1=vec[i];
 			int N_2=vec[i+1];
 			ratiovec[i] = static_cast<double>(N_1)/N_2;
-//			std::cout << N_1 << " " << N_2 << " " << ratiovec[i] << std::endl;
 			ratio_uncvec[i]= std::sqrt( N_1/std::pow(N_2,2) + std::pow(N_1,2)/std::pow(N_2,3) ); 
 			Ti_reps.close();
 			ar["results/"+std::to_string(i)+"/N1"] << N_1;
 			ar["results/"+std::to_string(i)+"/N2"] << N_2;
 			ar["results/"+std::to_string(i)+"/Zratio"] << ratiovec[i];
 			ar["results/"+std::to_string(i)+"/Zratio_unc"] << ratio_uncvec[i];
-//                        std::remove(oss.str().c_str());
 		}	
-/*
-	        std::ofstream Zratios;
-		Zratios.open("Zratios.txt");
-        	for (auto & val : ratiovec)
-	            Zratios << val << " ";
-		Zratios << "\n";
-		for (auto & val : ratio_uncvec)
-		    Zratios << val << "  ";
-	        Zratios.close();
-*/	
+
 		ar["/parameters"] << parameters;
 		ar["/parameters/T_points"] << T_vec;
 		ar["/parameters/p_points"] << p_vec;
 		ar["/results/Zratios"] << ratiovec;
 		ar["/results/Zratios_unc"] << ratio_uncvec;
 
-                double ratioprod = std::accumulate(ratiovec.begin(), ratiovec.end(), 1.0, std::multiplies<double>());
-                double rel_unc_sq_sum = 0.;
-                for (size_t i = 0; i < ratiovec.size(); ++i)
-                    rel_unc_sq_sum += std::pow(ratio_uncvec[i] / ratiovec[i], 2);
-                double ratioprod_unc = ratioprod * std::sqrt(rel_unc_sq_sum);
-                ar["/results/Z_TOT"] << ratioprod;
-                ar["/results/Z_TOT_unc"] << ratioprod_unc;
+        // Compute Zratio product = Z_TOT
+        double ratioprod = std::accumulate(ratiovec.begin(), ratiovec.end(), 1.0, std::multiplies<double>());
+        double rel_unc_sq_sum = 0.;
+        for (size_t i = 0; i < ratiovec.size(); ++i)
+            rel_unc_sq_sum += std::pow(ratio_uncvec[i] / ratiovec[i], 2);
+        double ratioprod_unc = ratioprod * std::sqrt(rel_unc_sq_sum);
+        ar["/results/Z_TOT"] << ratioprod;
+        ar["/results/Z_TOT_unc"] << ratioprod_unc;		
 
-		
+        //Store bond configurations, Temperature values and spin configurations for each simulation
 		for (int n_sim=0;n_sim<(int) parameters["N_replica"];n_sim++){   
 		        ar["/results/" + std::to_string(n_sim) + "/T"] << T_vec[n_sim];
 		        ar["/results/" + std::to_string(n_sim) + "/p"] << p_vec[n_sim];
-		
 		        //store the bond configuratio used for each p-T value simulation
 			std::ostringstream oss1;
 		    	oss1 << simdir << "config_p=" << std::fixed << std::setprecision(3) << p_vec[n_sim] << ".data";
@@ -209,17 +194,15 @@ int main(int argc, char** argv)
 		        }
 		        ar["/results/" + std::to_string(n_sim) + "/bonds"] << bondconfig;
 		        bondconfigfile.close();
-		
+
 		        //store the midpoint spin configuration where Zratio sampling starts
+                // THIS WILL JUST BE RANDOM IN THE NEW METHOD
 		        std::ostringstream oss2;
 		        oss2 << simdir << std::fixed << std::setprecision(6) << T_vec[n_sim] << ".data";
 		        std::ifstream spinconfigfile(oss2.str());
 		        std::vector<int> spinconfig((std::istream_iterator<int>(spinconfigfile)), std::istream_iterator<int>());
 		        ar["/results/" + std::to_string(n_sim) + "/spinconfig"] << spinconfig;
 		        spinconfigfile.close();
-			
-//			std::remove(oss1.str().c_str());
-//			std::remove(oss2.str().c_str());
 		}
 		ar.close();	
 	}
@@ -271,10 +254,11 @@ int main(int argc, char** argv)
 
         }        
 */
-        //Post Processing
+
         int MPI_Barrier(MPI_Comm comm_world);
         if (comm_world.rank() == 0) {
-            std::cout << "All copies finished.\n";
+            double dt =  ( (double) clock() - t1 ) / CLOCKS_PER_SEC;
+            std::cout << "All copies finished in " << dt << " s " << std::endl;
         }
 
         return 0;
