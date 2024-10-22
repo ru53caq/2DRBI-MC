@@ -1,12 +1,9 @@
 #!/bin/bash
 #SBATCH -J cycle_jobs
-#-get-user-env
-#-clusters=odyssey
 #SBATCH --nodes=1
 #SBATCH --ntasks-per-node=16    # Adjust based on your needs
 #SBATCH --mail-type=end
 #SBATCH --mail-user=giovanni.canossa@physik.uni-muenchen.de
-#-export=NONE 
 #SBATCH --time=72:00:00
 #-output=/dev/null
 #-error=/dev/null
