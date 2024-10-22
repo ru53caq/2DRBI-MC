@@ -71,14 +71,19 @@ class ising_sim : public pt_adapter<phase_space_point::temperature> {
     int N_core;
     std::vector<double> time_in_Ti;
 
-
     // Convergence check
     bool converged = false;
 
-    
     //PT acceptance rate
     double pt_checker=0;
-
+    std::vector<int> this_J_x;
+    std::vector<int> this_J_y;
+    std::vector<int> next_J_x;
+    std::vector<int> next_J_y;
+    double this_T;
+    double this_p;
+    double next_T;
+    double next_p;
     ising_measurement op_measure; // order parameters and constraint
     std::string orders; // orders to measure
 

@@ -1,6 +1,7 @@
 #include <alps/params/convenience_params.hpp>
 #include "2DRBI.hpp"
-
+#include "mpi.hpp"
+#include <iostream>
 // Defines the parameters for the ising simulation
 void ising_sim::define_parameters(parameters_type & parameters) {
     // If the parameters are restored, they are already defined
@@ -59,21 +60,33 @@ ising_sim::ising_sim(parameters_type & parms, std::size_t seed_offset)
     , initial_state(parameters["initial_state"].as<std::string>())
 {
     
+
     S.resize(std::size_t(lat_sites));
+
     initialization(initial_state);
 
     simdir = "./";
     simdir = "../L_5/p_0.000/even/Seed_0/";
 
-    std::ifstream T_points(simdir + "T_points.data");
+    std::ifstream Tp_points(simdir + "T-p_points.data");
     N_replica = parameters["N_replica"];
     T_vec.resize(N_replica+1);
-    time_in_Ti.resize(2);
+    p_vec.resize(N_replica+1);
+    time_in_Ti.resize(N_replica+1);
     for (int i=0; i<T_vec.size(); i++){
-        T_points >> T_vec[i];
+        Tp_points >> T_vec[i];
+        Tp_points >> p_vec[i];
     }
-    T_points.close();
+    Tp_points.close();
 
+//  Prepare the J configs for this replica and the next; will speed up Zratio swaps
+    this_J_x.resize(lat_sites+2*L);
+    this_J_y.resize(lat_sites+2*L);
+    next_J_x.resize(lat_sites+2*L);
+    next_J_y.resize(lat_sites+2*L);
+    
+
+/*
     //PT ACCEPTANCE RATIO [NOT ACTUALLY USED]
     measurements() << alps::accumulators::FullBinningAccumulator<double>("Acceptance");
     op_names = parsing_op(orders);
@@ -84,81 +97,206 @@ ising_sim::ising_sim(parameters_type & parms, std::size_t seed_offset)
         << alps::accumulators::FullBinningAccumulator<double>(op + "^4")
         << alps::accumulators::MeanAccumulator<std::vector<double>>(op + "_Hist");
     }
+*/
 }
 
 
 void ising_sim::update() {
     if (sweeps == 0){
-//      Each replica starts at a given T and loads J_x,J_y config
-//      Simulation switches between UP= true to say we are in the original config, up=False to say we added a line flip
-//      Each core follows the CONFIG, not the Temperature!!!
-//      We will add 2 parameters: N1 for UP=True (line not flipped), N2 for UP=false (line flipped)
-//      Line updates are proposed every sweep!!!
-//      N1 and N2 are increased IF REPLICA IS AT Tmin AND HAS THE LINE FLIPPED
-        auto it = std::find(T_vec.begin(), T_vec.end(), temp.temp);
-        ind = std::distance( T_vec.begin(), it);    //ind contains the index of the current T-p point
-        N_core = ind;
-        up = true;      //All start with no line flip
-        E_tot = total_energy();
-        std::ifstream disorder_config(simdir + "config_p.data");
+//      Each replica starts at a given T,p, loads PTval, (T,p) and (T+1,p+1) with respective J_x,J_y configs
+//      Simulation switches between UP= true to say we are in (T,p), up=False to say we are in (T+1,p+1)
+        std::ifstream PTvalue(simdir + "PTval.txt");
+        PTvalue >> PTval;
+        PTvalue.close();
+        up = true;      
+
+        MPI_Comm_rank(MPI_COMM_WORLD, &N_core);
+        ind = N_core;
+        this_p = p_vec[ind];
+        this_T = T_vec[ind];
+        next_p = p_vec[ind+1];
+        next_T = T_vec[ind+1];
+
+        T=temp.temp;     
+        p = p_vec[ind];
+
+        std::ostringstream out;
+        out << std::fixed << std::setprecision(3) << p;
+        std::string p_str = out.str(); 
+        std::ifstream disorder_config(simdir + "config_p=" + p_str + ".data");
         for (int i=0; i<J_x.size(); i++){
             disorder_config >> J_x[i];
             disorder_config >> J_y[i];
-        }
-   }
-//    if (sweeps % measuring_sweeps == 0) // placed before update
-//        record_measurement();
+            this_J_x[i] = J_x[i];
+    	    this_J_y[i] = J_y[i];
+    	}
+        disorder_config.close();
 
-    double beta = 1./temp.temp;
+        std::ostringstream next_out;
+        next_out << std::fixed << std::setprecision(3) << next_p;
+        std::string next_p_str =next_out.str(); 
+        std::ifstream next_disorder_config(simdir + "config_p=" + next_p_str + ".data");
+        for (int i=0; i<J_x.size(); i++){
+            next_disorder_config >> next_J_x[i];
+            next_disorder_config >> next_J_y[i];
+        }
+        next_disorder_config.close();
+    // IN CASE OF ZRATIO CALCULATION, PRELOAD THE OTHER Z CONFIGURATION
+//	FOR NOW WE SKIP THE CONFIG GENERATION STEP: WE WILL THERMALIZE IN THE MAIN SIMULATION
+	//In case of Zratio calculation, reload the final spin configuration available
+//        if (PTval ==0){
+//            std::ifstream spin_config(simdir + std::to_string(T)+ ".data");
+//            for (int i=0; i<S.size(); i++)
+//                spin_config >> S[i];
+//        spin_config.close();
+//        }
+
+
+        E_tot = total_energy();
+   }
+    // measuring relevant observables (useless in the current code version)
+
+    if (sweeps % measuring_sweeps == 0) // placed before update
+        record_measurement();
+
+
+    double beta = 1./T;    // USE temp.temp in case of no embarassing parallelization;
+
     //Heatbath update
     for (int i = 0; i < lat_sites; ++i)
         Heatbath(random_site(rng), beta);
     //Overrelaxation update
     overrelaxation();
 
-
-    //line update
-    double dE = 0.;
-    for (int i = 0; i < (L+1)/2; i++){
-        if (i == (L+1)/2 - 1)
-            dE += 2* S[i] * J_x[ (L+1) * (L-1)/2 + 2*i ];
-        else if (i < (L+1)/2 -1 ){
-            dE += 2* S[i] * J_x[ (L+1) * (L-1)/2 + 2*i ];
-            dE += 2* S[i] * J_x[ (L+1) * (L-1)/2 + 2*i +1 ];
-        }
-    }
-
-    double u = std::uniform_real_distribution<double>{0., 1.}(rng);
-    double alpha = std::exp( -beta*dE);    //Metropolis update 
-    double compl_prob = 1./ (1. + alpha);    //Heat bath  update
-//    if (u<alpha){
-    if (u > compl_prob){
-        E_tot = E_tot + dE;
-        for (int i = (L+1)*(L-1)/2; i < L + (L+1)*(L-1)/2; i++)
-            J_x[i] *=-1;
-        up = !up;   // This replica has a flipped line of bonds!!!
-    }
-
-
-    //NO USE OF PT IS EVER REQUIRE IF WE SKIP THE THERMALIZING PROCEDURE
+/*  //NO USE OF PT IS EVER REQUIRE IF WE SKIP THE THERMALIZING PROCEDURE
     //Parallel tempering
-    if ( ( (sweeps + 1) % 10 == 0 ) ){
+    if ( (PTval > 0 ) && ( (sweeps + 1) % pt_sweeps == 0 ) ){
 
         double current_energy = total_energy();
+
         phase_point temp_old = temp;
+
+        std::vector<int> other_J_x(lat_sites+2*L);
+        std::vector<int> other_J_y(lat_sites+2*L);
+
         negotiate_update(rng, true,
         [&](phase_point other) {
-            return - current_energy * ( 1./ other.temp  -  1./ temp.temp);  
+            auto it = std::find(T_vec.begin(), T_vec.end(), other.temp);
+            int index = std::distance( T_vec.begin(), it);
+            double other_p = p_vec[index];
+            std::string other_p_str = (std::to_string(other_p)).substr(0,5); 
+            std::ifstream conf(simdir + "config_p=" + other_p_str + ".data");
+            for (int i=0; i<J_x.size(); i++){
+                conf >> other_J_x[i];
+                conf >> other_J_y[i];
+            }
+            conf.close();
+            //compute energy of current spin config with the new potential bond config
+
+            double other_energy = 0.;
+            for(int i = 0; i < lat_sites; ++i){
+                other_energy   += other_J_x[i] * ( S[i] * S[lat.nb_2(i)] ) + other_J_y[i] * ( S[i] * S[lat.nb_1(i)] );
+                if (i == (L+1)/2 -1)
+                    other_energy += S[i] * other_J_x[ (L+1) * (L-1)/2 + 2*i ];
+                else if (i < (L+1)/2 -1 ){
+                    other_energy += S[i] * other_J_x[ (L+1) * (L-1)/2 + 2*i ];
+                    other_energy += S[i] * other_J_x[ (L+1) * (L-1)/2 + 2*i +1 ];
+                }
+                else if (i == (L+1)*(L-2)/2)
+                    other_energy += S[i] * other_J_x[ (L+1)*(L-1)/2 + L ];
+                else if (i > (L+1)*(L-2)/2){
+                    other_energy += S[i] * other_J_x[ (L+1) * (L-1)/2 +  L + 2*( i - (L+1)*(L-2)/2) -1 ];
+                    other_energy += S[i] * other_J_x[ (L+1) * (L-1)/2 +  L + 2*( i - (L+1)*(L-2)/2)];
+                }
+            }
+            other_energy = - other_energy;
+            double dE= other_energy - current_energy;
+            return -(other_energy / other.temp  - current_energy / temp.temp);  
         });
+
+        //keep track of the p-T point at which the replica is currently at
+        //Once PT is over, the computation of Z_i/Z_i+1 ratio will start
         temp!= temp_old  ? (pt_checker=1) : (pt_checker=0);
+        if (pt_checker ==1){
+            auto it = std::find(T_vec.begin(), T_vec.end(), temp.temp);
+            int index = std::distance( T_vec.begin(), it);
+            double other_p = p_vec[index];
+//            std::cout << "Update accepted" << std::endl;
+            std::string other_p_str = (std::to_string(other_p)).substr(0,5); 
+            std::ifstream conf(simdir + "config_p=" + other_p_str + ".data");
+            for (int i=0; i<J_x.size(); i++){
+                conf >> J_x[i];
+                conf >> J_y[i];
+            }
+            conf.close();
+            p = other_p;
+            E_tot = total_energy();
+            T = temp.temp;
+            ind = index;
+        }
 
     }
-    
-    // For each replica, check if you are at T_Nishimori and update the respective element; 
-    if ( (sweeps>thermalization_sweeps) && (temp.temp == T_vec[0]) ){
-        time_in_Ti[!up] +=1;
+*/
 
-        if ( ( sweeps % 10000 == 0 ) ){
+    // ADDED THE CONDITION OF HAVING SWEEPS>THERMALIZATION_SWEEPS: THIS IS ONLY TRUE WHEN NO CONFIGURATION IS FED INITIALLY
+    //embarassingly parallel movement between the initial p-T point and its neighbour 
+    if ( (PTval ==0) && (sweeps>thermalization_sweeps) && ( (sweeps + 1) % 10 == 0 ) ){
+
+        double current_energy = total_energy();
+        std::vector<int> other_J_x(lat_sites+2*L);
+        std::vector<int> other_J_y(lat_sites+2*L);
+        double other_T;
+        double other_p;
+
+        if (up){
+            time_in_Ti[ind] +=1;
+    	    other_T = next_T;
+    	    other_p = next_p;
+    	    other_J_x = next_J_x;
+    	    other_J_y = next_J_y;
+   	}
+        else{
+            time_in_Ti[ind+1] +=1;
+    	    other_T = this_T;
+    	    other_p = this_p;
+    	    other_J_x = this_J_x;
+    	    other_J_y = this_J_y;
+	}
+
+        //compute energy of current spin config with the new potential bond config
+        double other_energy = 0.;
+        for(int i = 0; i < lat_sites; ++i){
+            other_energy   += other_J_x[i] * ( S[i] * S[lat.nb_2(i)] ) + other_J_y[i] * ( S[i] * S[lat.nb_1(i)] );
+            if (i == (L+1)/2 -1)
+                other_energy += S[i] * other_J_x[ (L+1) * (L-1)/2 + 2*i ];
+            else if (i < (L+1)/2 -1 ){
+                other_energy += S[i] * other_J_x[ (L+1) * (L-1)/2 + 2*i ];
+                other_energy += S[i] * other_J_x[ (L+1) * (L-1)/2 + 2*i +1 ];
+            }
+            else if (i == (L+1)*(L-2)/2)
+                other_energy += S[i] * other_J_x[ (L+1)*(L-1)/2 + L ];
+            else if (i > (L+1)*(L-2)/2){
+                other_energy += S[i] * other_J_x[ (L+1) * (L-1)/2 +  L + 2*( i - (L+1)*(L-2)/2) -1];
+                other_energy += S[i] * other_J_x[ (L+1) * (L-1)/2 +  L + 2*( i - (L+1)*(L-2)/2)];
+            }
+
+        }
+        other_energy = - other_energy;
+        double dE= other_energy - current_energy;
+
+        double u = std::uniform_real_distribution<double>{0., 1.}(rng);
+        double alpha = std::exp(-(other_energy / other_T  - current_energy / T) );
+        if(u<alpha){
+            T=other_T;
+            p=other_p;
+            J_x = other_J_x;
+            J_y = other_J_y;
+            up = !up;
+            E_tot = total_energy();
+        }
+
+        // Checkpoint the amount of times each p-T point has been visited
+        if ( ( (sweeps + 1) % (1000*pt_sweeps) == 0 ) ){
             std::ofstream ofs("Ti_time_rep_"+std::to_string(N_core) + ".txt");
             for (auto & val : time_in_Ti)
                 ofs << val << " ";
@@ -167,7 +305,6 @@ void ising_sim::update() {
     }
 
     ++sweeps;
-
 }
 
 // Collects the measurements; NOT NEEDED IN OUR MINIMAL CASE
@@ -175,7 +312,7 @@ void ising_sim::measure() {
 //    if (sweeps < thermalization_sweeps && (sweeps+1) != measuring_sweeps || ((sweeps+1) % measuring_sweeps !=0))
     if (sweeps > -5)
         return;
-
+/*
     Nmeas +=1;
     measurements()["Acceptance"] << pt_checker;
 
@@ -206,6 +343,7 @@ void ising_sim::measure() {
         measurements()[op + "^4"] << op_value * op_value* op_value * op_value;
         measurements()[op + "_Hist"] << OP_Hist;
     }
+*/
 }
 
 // Returns a number between 0.0 and 1.0 with the completion percentage
@@ -216,6 +354,9 @@ double ising_sim::fraction_completed() const {
     if (sweeps> thermalization_sweeps + total_sweeps){
         f=1.;
     }
+    if (converged)
+        f=1.;
+
     return f;
 }
 
@@ -296,7 +437,6 @@ double ising_sim::local_energy(int i){
     double e = S[i] * (J_x[i]*S[lat.nb_2(i)] + J_x[lat.nb_3(i)]*S[lat.nb_3(i)] + J_y[i]*S[lat.nb_1(i)] + J_y[lat.nb_4(i)]*S[lat.nb_4(i)]);
     if (i == (L+1)/2 -1){
         e += S[i] * J_x[ (int)( (L+1) * (L-1)/2 + 2*i ) ];
-
     }
     else if (i < (L+1)/2 -1 ){
         e += S[i] * J_x[ (int)((L+1) * (L-1)/2 + 2*i )];
