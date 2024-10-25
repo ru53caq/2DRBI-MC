@@ -31,13 +31,34 @@
 
 #include "measurement.hpp"  
 #include "square_rotated.hpp"                                              
-
+#include <chrono>
+#include <ctime>
 
 // Simulation class for 2D Ising model (square lattice).
 // Extends alps::mcbase, the base class of all Monte Carlo simulations.
 // Defines its state, calculation functions (update/measure) and
 // serialization functions (save/load)
 
+
+
+
+namespace TimeReference {
+    // Define a fixed reference time as a constant
+    static std::chrono::time_point<std::chrono::system_clock> reference_time;
+    static void initReferenceTime() {
+        std::tm reference_tm = {};
+        reference_tm.tm_year = 2024 - 1900; // Year since 1900
+        reference_tm.tm_mon = 10 - 1;       // October (0-based)
+        reference_tm.tm_mday = 24;          // 24th day of the month
+        reference_tm.tm_hour = 23;
+        reference_tm.tm_min = 37;
+        reference_tm.tm_sec = 0;
+        reference_tm.tm_isdst = -1;         // Not considering DST
+        
+        // Convert to time_t and then to time_point
+        reference_time = std::chrono::system_clock::from_time_t(std::mktime(&reference_tm));
+     };
+}
 
 class ising_sim : public pt_adapter<phase_space_point::temperature> {
     using Base = pt_adapter<phase_space_point::temperature>;
@@ -69,10 +90,36 @@ class ising_sim : public pt_adapter<phase_space_point::temperature> {
     int ind;
     bool up=true;
     int N_core;
+
+
     std::vector<double> time_in_Ti;
 
-    // Convergence check
+    // MC Timeseries analysis
+    int n1=0;
+    int n2=0;
+    int t_step=8;
+    int sweep_t_step = 4096;
+    std::vector<double> Z_i;
+    std::vector<double> dZ_i;
+
+    // PT Timeseries analysis
+    std::vector<bool> timeseries;
+    std::vector<double> timestamps;
+
+
+/*
     bool converged = false;
+    int t_step=3;
+    int sweep_t_step = 8;
+    double e_avg;
+    std::vector<double> e_avg_vec;
+    double e_var;
+    std::vector<double> e_var_vec;
+    double e_avg_prev;
+    double e_var_prev;
+    std::vector<double> e_timeseries;
+*/
+
 
     //PT acceptance rate
     double pt_checker=0;
@@ -80,6 +127,9 @@ class ising_sim : public pt_adapter<phase_space_point::temperature> {
     std::vector<int> this_J_y;
     std::vector<int> next_J_x;
     std::vector<int> next_J_y;
+    std::vector<int> diff_J_x;
+    std::vector<int> diff_J_y;
+
     double this_T;
     double this_p;
     double next_T;

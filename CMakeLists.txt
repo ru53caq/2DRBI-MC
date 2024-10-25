@@ -21,17 +21,11 @@ endif()
 find_package(ALPSCore 2.2.0 REQUIRED)
 find_package(Threads REQUIRED)
 
+# First executable:
+add_executable(2DRBI_MC main_MC.cpp 2DRBI_MC.cpp)
+target_link_libraries(2DRBI_MC Threads::Threads ${ALPSCore_LIBRARIES})
 
-add_executable(${PROJECT_NAME} main.cpp 2DRBI.cpp)
-#add_executable(${PROJECT_NAME} main_PTfeedback.cpp Tetra_PTfeedback.cpp)
-target_link_libraries(2DRBI Threads::Threads)
-# Request the ALPSCore package (with all components)
-# The ALPSCore package must be installed in some
-# standard place (like /usr/local),
-# or somewhere in your PATH.
-# Otherwise, point ALPSCore_DIR environment variable
-# to the ALPScore installation tree.
-find_package(ALPSCore 2.0 REQUIRED)
+# Second executable:
+add_executable(2DRBI_PT main_PT.cpp 2DRBI_PT.cpp)
+target_link_libraries(2DRBI_PT Threads::Threads ${ALPSCore_LIBRARIES})
 
-# Use ALPSCore_LIBRARIES variable to link to ALPSCore
-target_link_libraries(${PROJECT_NAME} ${ALPSCore_LIBRARIES})
