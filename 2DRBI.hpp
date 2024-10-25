@@ -91,7 +91,6 @@ class ising_sim : public pt_adapter<phase_space_point::temperature> {
     bool up=true;
     int N_core;
 
-
     std::vector<double> time_in_Ti;
 
     // MC Timeseries analysis

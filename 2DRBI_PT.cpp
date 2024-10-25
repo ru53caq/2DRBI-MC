@@ -132,6 +132,7 @@ void ising_sim::update() {
     double compl_prob = 1./ (1. + alpha);    //Heat bath  update
 //    if (u<alpha){
     if (u > compl_prob){
+        
         E_tot = E_tot + dE;
         for (int i = (L+1)*(L-1)/2; i < L + (L+1)*(L-1)/2; i++)
             J_x[i] *=-1;
@@ -150,7 +151,6 @@ void ising_sim::update() {
             return - current_energy * ( 1./ other.temp  -  1./ temp.temp);  
         });
         temp!= temp_old  ? (pt_checker=1) : (pt_checker=0);
-
     }
     
     // For each replica, check if you are at T_Nishimori and update the respective element; 

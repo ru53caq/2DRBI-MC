@@ -24,8 +24,8 @@ module load openmpi/4.1.5-fasrc01
 L=5
 disorder=0.115
 timelimit=100000
-therm=300000
-totsweeps=300000
+therm=1000000
+totsweeps=1000000
 Nreplica=$SLURM_NTASKS_PER_NODE
 Nbins=500
 T_Top=1.180
