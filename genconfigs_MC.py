@@ -30,6 +30,8 @@ def main():
     parser.add_argument('--Seed', type=int, required=True, help='Random seed')
     parser.add_argument('--init', type=str, choices=['even', 'odd','0dis'], required=True, help='Initialization (even/odd/0dis)')
     parser.add_argument('--replica_path', type=str, required=True, help='path_to_replica_folder')
+    parser.add_argument('--T_top', type=float, required=True, help='max T for MC method')
+    parser.add_argument('--T_top_PT', type=float, required=True, help='max T for PT method')
     args = parser.parse_args()
 
     ##Template of parameters to be dictated to the .ini file
@@ -67,11 +69,11 @@ def main():
     Seed = args.Seed
     init = args.init
     replica_path = args.replica_path
+    T_Top= args.T_top
+    T_Top_PT= args.T_top_PT
 
     disorder_str =  "%.3f"% disorder
     T_nishimori = 2/ math.log((1-disorder)/disorder)
-    T_Top= 1.180
-    T_Top_PT=4.5
 
 #    timelimit = 40*3600    GIVEN
     #    therm = 300000         GIVEN

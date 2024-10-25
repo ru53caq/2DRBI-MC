@@ -21,7 +21,8 @@ therm=10000
 totsweeps=100000
 Nreplica=$SLURM_NTASKS_PER_NODE
 Nbins=500
-
+T_Top=1.180
+T_Top_PT=2.5
 
 N_disorder_reps=2
 
@@ -45,7 +46,7 @@ for i in "${!Seeds[@]}"; do
         mkdir -p "$replica_path"
 
         # Generate configuration and disorder value
-        python genconfigs.py --L "$L" --disorder "$disorder" --timelimit "$timelimit" --therm "$therm" --totsweeps "$totsweeps" --Nreplica "$Nreplica" --Nbins "$Nbins" --Seed "$Seed" --init "$init" --replica_path "$replica_path"
+        python genconfigs.py --L "$L" --disorder "$disorder" --timelimit "$timelimit" --therm "$therm" --totsweeps "$totsweeps" --Nreplica "$Nreplica" --Nbins "$Nbins" --Seed "$Seed" --init "$init" --replica_path "$replica_path" --T_top "$T_top" --T_top_PT "$T_top_PT"
 
         # Navigate to the simulation directory
         cd "$replica_path"
