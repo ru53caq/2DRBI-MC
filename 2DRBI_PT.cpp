@@ -98,12 +98,12 @@ void ising_sim::update() {
         ind = std::distance( T_vec.begin(), it);    //ind contains the index of the current T-p point
         N_core = ind;
         up = true;      //All start with no line flip
-        E_tot = total_energy();
         std::ifstream disorder_config(simdir + "config_p.data");
         for (int i=0; i<J_x.size(); i++){
             disorder_config >> J_x[i];
             disorder_config >> J_y[i];
         }
+	E_tot = total_energy();
    }
 //    if (sweeps % measuring_sweeps == 0) // placed before update
 //        record_measurement();
@@ -116,29 +116,32 @@ void ising_sim::update() {
     overrelaxation();
 
 
-    //line update
+    //line update      [WE TRY TO DO IT ONLY AT THE TOP CHAIN
+//    if (temp.temp==T_vec[T_vec.size()-2]){
     double dE = 0.;
     for (int i = 0; i < (L+1)/2; i++){
         if (i == (L+1)/2 - 1)
             dE +=  S[i] * J_x[ (L+1) * (L-1)/2 + 2*i ];
-        else if (i < (L+1)/2 -1 ){
+	else if (i < (L+1)/2 -1 ){
             dE +=  S[i] * J_x[ (L+1) * (L-1)/2 + 2*i ];
             dE +=  S[i] * J_x[ (L+1) * (L-1)/2 + 2*i +1 ];
-        }
+	}
     }
     dE = 2.*dE;
     double u = std::uniform_real_distribution<double>{0., 1.}(rng);
-    double alpha = std::exp( -beta*dE);    //Metropolis update 
+    double alpha = std::exp( - beta*dE);    //Metropolis update 
     double compl_prob = 1./ (1. + alpha);    //Heat bath  update
 //    if (u<alpha){
     if (u > compl_prob){
         
         E_tot = E_tot + dE;
         for (int i = (L+1)*(L-1)/2; i < L + (L+1)*(L-1)/2; i++)
-            J_x[i] *=-1;
+            J_x[i] *= -1;
         up = !up;   // This replica has a flipped line of bonds!!!
     }
 
+
+//    }
 
     //NO USE OF PT IS EVER REQUIRE IF WE SKIP THE THERMALIZING PROCEDURE
     //Parallel tempering
@@ -151,60 +154,46 @@ void ising_sim::update() {
             return - current_energy * ( 1./ other.temp  -  1./ temp.temp);  
         });
         temp!= temp_old  ? (pt_checker=1) : (pt_checker=0);
+//    	measurements()["Acceptance"] << pt_checker;
+	    
+	    // For each replica, check if you are at T_Nishimori and update the respective element; 
+	    if ( (temp.temp == T_vec[0]) ){
+		if (sweeps>thermalization_sweeps)
+		    time_in_Ti[!up] +=1;
+		if (up)
+		    n1+=1;
+		else
+		    n2+=1;
+
+		timeseries.push_back(!up);
+
+		const auto& reference_time = TimeReference::reference_time;
+		TimeReference::initReferenceTime();
+		double us_ref = static_cast<double>( std::chrono::duration_cast<std::chrono::microseconds>(std::chrono::system_clock::now() - TimeReference::reference_time).count() );
+		if (timestamps.size()>0)
+		    timestamps.push_back(us_ref/1000 - timestamps[0]);
+		else
+		    timestamps.push_back(us_ref/1000);
+
+
+	    }
     }
-    
-    // For each replica, check if you are at T_Nishimori and update the respective element; 
-    if ( ( sweeps % pt_sweeps == 0 ) && (temp.temp == T_vec[0]) ){
-        if (sweeps>thermalization_sweeps)
-            time_in_Ti[!up] +=1;
-        if (up)
-            n1+=1;
-        else
-            n2+=1;
+//    if ( (sweeps>thermalization_sweeps + total_sweeps/4) && (sweeps - thermalization_sweeps) % (total_sweeps/20)  == 0  ){
+//        std::ofstream ofs1(simdir+ "Ti_time_rep_"+std::to_string(N_core) + ".txt");
+//        for (auto & val : time_in_Ti)
+//    	    ofs1 << val << " ";
+//        ofs1.close();
+//        std::ofstream ofs2(simdir+"Timeseries_"+std::to_string(N_core) + ".txt");
+//        for (bool val : timeseries)
+//	    ofs2 << val << " ";
+//        ofs2.close();
+//        std::ofstream ofs3(simdir+"Timestamps_"+std::to_string(N_core) + ".txt");
+//        ofs3.precision(10);
+//        for (auto & val : timestamps)
+//	    ofs3 << val << " ";
+//        ofs3.close();
+//    }
 
-        timeseries.push_back(!up);
-
-        const auto& reference_time = TimeReference::reference_time;
-        TimeReference::initReferenceTime();
-        double us_ref = static_cast<double>( std::chrono::duration_cast<std::chrono::microseconds>(std::chrono::system_clock::now() - TimeReference::reference_time).count() );
-        if (timestamps.size()>0)
-            timestamps.push_back(us_ref/1000 - timestamps[0]);
-        else
-            timestamps.push_back(us_ref/1000);
-/*
-        if (sweeps == sweep_t_step ){
-            if (n2==0)
-                n2+=1;  //in case no samples went to n2 (typically only at start of equilibration)
-            double Z_r = n1/(double)n2;
-            double dZ_r = std::sqrt( ((double)n1)/std::pow(n2,2) + ((double)(std::pow(n1,2)))/std::pow(n2,3) );
-            Z_i.push_back(Z_r);
-            dZ_i.push_back(dZ_r);
-
-            n1=0;
-            n2=0;
-            t_step+=1;
-            sweep_t_step = std::pow(t_step,4);
-        }
-*/
-
-        if ( (sweeps > thermalization_sweeps + total_sweeps/2) && ( sweeps % 1000 == 0 ) ){
-            std::ofstream ofs1(simdir+ "Ti_time_rep_"+std::to_string(N_core) + ".txt");
-            for (auto & val : time_in_Ti)
-                ofs1 << val << " ";
-            ofs1.close();
-            std::ofstream ofs2(simdir+"Timeseries_"+std::to_string(N_core) + ".txt");
-            for (bool val : timeseries)
-                ofs2 << val << " ";
-            ofs2.close();
-            std::ofstream ofs3(simdir+"Timestamps_"+std::to_string(N_core) + ".txt");
-            ofs3.precision(10);
-            for (auto & val : timestamps)
-                ofs3 << val << " ";
-            ofs3.close();
-        }
-
-
-    }
 
     ++sweeps;
 
@@ -217,8 +206,6 @@ void ising_sim::measure() {
         return;
 
     Nmeas +=1;
-    measurements()["Acceptance"] << pt_checker;
-
 //    measurements()["is_even"] << ((S[0]*S[L-1] +1)/2);
     for (std::string op : op_names){     
 
@@ -253,31 +240,25 @@ double ising_sim::fraction_completed() const {
     double f=0.;
     if (total_sweeps>0 && sweeps >= thermalization_sweeps) 
         f=(sweeps-thermalization_sweeps)/double(total_sweeps);
-    if (sweeps> thermalization_sweeps + total_sweeps){
+    if (sweeps>= thermalization_sweeps + total_sweeps){
         f=1.;
     }
-/*
-    if ( (sweeps == thermalization_sweeps + total_sweeps) && (temp.temp == T_vec[0]) ){
-        f=1.;
-        std::ofstream ofs(simdir+"DONE.txt");
-        ofs << 1;
-        ofs.close();
-        std::cout << N_core << " " << temp.temp << std::endl;
+    if (f==1.){
+        std::ofstream ofs1(simdir+ "Ti_time_rep_"+std::to_string(N_core) + ".txt");
+        for (auto & val : time_in_Ti)
+            ofs1 << val << " ";
+        ofs1.close();
+	std::ofstream ofs2(simdir+"Timeseries_"+std::to_string(N_core) + ".txt");
+        for (bool val : timeseries)
+          ofs2 << val << " ";
+        ofs2.close();
+        std::ofstream ofs3(simdir+"Timestamps_"+std::to_string(N_core) + ".txt");
+        ofs3.precision(10);
+        for (auto & val : timestamps)
+          ofs3 << val << " ";
+        ofs3.close();
     }
-    if ( sweeps> thermalization_sweeps + total_sweeps){
-        int done;
-        std::ifstream donefile(simdir+ "DONE.txt");
-        if (donefile.is_open()){ 
-            donefile >> done;
-            donefile.close();
-        }
-        if (done==1){
-            f=1.;
-            std::cout << N_core << " " << temp.temp << std::endl;
 
-        }
-    }
-*/
     return f;
 }
 

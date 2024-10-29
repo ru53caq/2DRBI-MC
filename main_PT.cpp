@@ -156,10 +156,18 @@ int main(int argc, char** argv)
             std::vector<bool> n_i_ts;
             std::vector<double> t_i_ts;
             std::ifstream n_i_ts_file(simdir+"Timeseries_" + std::to_string(i) + ".txt");
-            n_i_ts.insert(n_i_ts.end(), std::istream_iterator<double>(n_i_ts_file), std::istream_iterator<double>());
+	    if (!n_i_ts_file) {
+	        std::cerr << "Warning: " << i << "_Timeseries.txt does not exist" << std::endl;
+	        continue;
+	    }
+	    n_i_ts.insert(n_i_ts.end(), std::istream_iterator<double>(n_i_ts_file), std::istream_iterator<double>());
             n_i_ts_file.close();
             std::ifstream t_i_ts_file(simdir+"Timestamps_" + std::to_string(i) + ".txt");
-            t_i_ts.insert(t_i_ts.end(), std::istream_iterator<double>(t_i_ts_file), std::istream_iterator<double>());
+	    if (!t_i_ts_file) { 
+	        std::cerr << "Warning: " << i << "_Timestamps.txt does not exist" << std::endl;
+	        continue;
+	    }
+	    t_i_ts.insert(t_i_ts.end(), std::istream_iterator<double>(t_i_ts_file), std::istream_iterator<double>());
             t_i_ts_file.close();
             n_i_ts.erase(n_i_ts.begin());
             t_i_ts.erase(t_i_ts.begin());
@@ -207,7 +215,11 @@ int main(int argc, char** argv)
         std::vector<double> dZ_ts(n_bins, 0);
         for (int i = 0; i < n_bins; ++i) {
             Z_ts[i] = N1_ts_bins[i]/(double)(N2_ts_bins[i]);
-            dZ_ts[i] = std::sqrt( N1_ts_bins[i]/(double)(std::pow(N2_ts_bins[i],2)) + std::pow(N1_ts_bins[i],2)/(double)(std::pow(N2_ts_bins[2],3)) ); 
+   	    dZ_ts[i] = std::sqrt(
+            N1_ts_bins[i] / static_cast<double>(N2_ts_bins[i] * N2_ts_bins[i]) +
+            (N1_ts_bins[i] * N1_ts_bins[i]) / static_cast<double>(N2_ts_bins[i] * N2_ts_bins[i] * N2_ts_bins[i])
+            );
+//	    dZ_ts[i] = std::sqrt( N1_ts_bins[i]/(double)(std::pow(N2_ts_bins[i],2)) + std::pow(N1_ts_bins[i],2)/(double)(std::pow(N2_ts_bins[2],3)) ); 
         }
         ar["/results/Z_timeseries"] << Z_ts;
         ar["/results/Z_unc_timeseries"] << dZ_ts;

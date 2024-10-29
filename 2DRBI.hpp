@@ -96,8 +96,8 @@ class ising_sim : public pt_adapter<phase_space_point::temperature> {
     // MC Timeseries analysis
     int n1=0;
     int n2=0;
-    int t_step=8;
-    int sweep_t_step = 4096;
+    int t_step=4;
+    int sweep_t_step = 2560;
     std::vector<double> Z_i;
     std::vector<double> dZ_i;
 

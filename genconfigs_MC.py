@@ -168,7 +168,7 @@ def main():
         for q in range(Nreplica+1):
             T_vec[q] = T_nishimori + (T_Top - T_nishimori) * q/(Nreplica)
     if (init == "odd"):
-        config[-L:] *= -1
+        config[-2*L:-L] *= -1
         for q in range(Nreplica+1):
             T_vec[q] = T_nishimori + (T_Top - T_nishimori) * q/(Nreplica)
 

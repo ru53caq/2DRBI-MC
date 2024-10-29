@@ -2,15 +2,15 @@
 #SBATCH -o ./out_%j.out
 #SBATCH -e ./err_%j.out
 #SBATCH -J cycle_jobs
-#SBATCH --partition=shared,sapphire
-#SBATCH --nodes=2
-#SBATCH --ntasks-per-node=8
-#SBATCH --cpus-per-task=8
-##SBATCH --ntasks=1
-##SBATCH --cpus-per-task=10
+#SBATCH --partition=test,yao,shared,sapphire
+#SBATCH --nodes=1
+#SBATCH --ntasks-per-node=32
+#SBATCH --cpus-per-task=2
+#SBATCH --mem=4G
+###SBATCH --cpus-per-task=2
 #SBATCH --mail-type=end
 #SBATCH --mail-user=giovanni.canossa@physik.uni-muenchen.de
-#SBATCH --time=50:00:00
+#SBATCH --time=00:10:00
 #-output=/dev/null
 #-error=/dev/null
 
@@ -19,20 +19,23 @@ module load gcc/12.2.0-fasrc01
 module load python/3.10.9
 module load openmpi/4.1.5-fasrc01
 #source $HOME/.local/bin/activate
-
+nodes=${SLURM_NNODES}
+tasks=${SLURM_TASKS_PER_NODE}
 # Define constants
 L=5
 disorder=0.115
 timelimit=100000
-therm=1000000
-totsweeps=1000000
-Nreplica=$SLURM_NTASKS_PER_NODE
+therm=2000000
+totsweeps=2000000
+Nreplica=8
 Nbins=500
 T_Top=1.180
-T_Top_PT=2.5
+T_Top_PT=3.
 
 PT="true"
-N_disorder_reps=10
+N_disorder_reps=1
+
+##### MULTIPLICATOR for final 0dis simu is set to 1 at line 161 to propagate uncertainties correctly in Z_timeseries
 
 # Path format for replica storage
 pathformat='L_%d/p_%1.3f/%s/Seed_%d'
@@ -46,42 +49,95 @@ echo "Seeds: ${Seeds[@]}"
 for i in "${!Seeds[@]}"; do
     Seed=${Seeds[$i]}
 
-    for init in "even" "odd"; do
+    ## EVEN SIMS
 
-        # Create directory structure
-        replica_path=$(printf "$pathformat" "$L" "$disorder" "$init" "$i")
-        mkdir -p "$replica_path"
+    replica_path_e=$(printf "$pathformat" "$L" "$disorder" "even" "$i")
+    mkdir -p "$replica_path_e"
 
-        # Generate configuration and disorder value
-        python genconfigs_MC.py --L "$L" --disorder "$disorder" --timelimit "$timelimit" --therm "$therm" --totsweeps "$totsweeps" --Nreplica "$Nreplica" --Nbins "$Nbins" --Seed "$Seed" --init "$init" --replica_path "$replica_path"  --T_Top "$T_Top" --T_Top_PT "$T_Top_PT"
+    python genconfigs_MC.py --L "$L" --disorder "$disorder" --timelimit "$timelimit" --therm "$therm" --totsweeps "$totsweeps" --Nreplica "$Nreplica" --Nbins "$Nbins" --Seed "$Seed" --init "even" --replica_path "$replica_path_e"  --T_Top "$T_Top" --T_Top_PT "$T_Top_PT"
 
-        # Navigate to the simulation directory
-        cd "$replica_path"
+    cd "$replica_path_e"
 
-        # Run the simulation and save output files in the respective folder
-#        echo "1" > "PTval.txt"
-#        mpirun -n $Nreplica ../../../../build/2DRBI_MC "2DRBI.ini"
-        echo "0" > "PTval.txt"
-        mpirun -n $Nreplica ../../../../build/2DRBI_MC "2DRBI.ini"
-        rm "PTval.txt"
-        find "." -type f -name "*Ti_time*" -exec rm -f {} \;
-        find "." -type f -name "*.data*" -exec rm -f {} \;
-        find "." -type f -name "*config*" -exec rm -f {} \;
-        find "." -type f -name "*timeseries.txt*" -exec rm -f {} \;
-        # Navigate back to root directory
-        cd "$OLDPWD"
+    #        echo "1" > "PTval.txt"
+    #        mpirun -n $Nreplica ../../../../build/2DRBI_MC "2DRBI.ini"
+    echo "0" > "PTval.txt"
+    mpirun -n $Nreplica ../../../../build/2DRBI_MC "2DRBI.ini"
+    rm "PTval.txt"
+    #        find "." -type f -name "*Ti_time*" -exec rm -f {} \;
+    #        find "." -type f -name "*.data*" -exec rm -f {} \;
+    #        find "." -type f -name "*config*" -exec rm -f {} \;
+    #        find "." -type f -name "*timeseries.txt*" -exec rm -f {} \;
 
-    # Generate PT_simulation
-#    replica_path=$(printf "$pathformat" "$L" "$disorder" "PT" "$i")
-#    mkdir -p "$replica_path"
+    cd "$OLDPWD"
 
+
+
+    ## ODD SIMS
+
+    replica_path_o=$(printf "$pathformat" "$L" "$disorder" "odd" "$i")
+    mkdir -p "$replica_path_o"
+
+    fini="$replica_path_e/2DRBI.ini"
+    fpt="$replica_path_e/T-p_points.data"
+    cp "$fini" "$replica_path_o"
+    cp "$fpt" "$replica_path_o"
+
+    for fdis in "$replica_path_e"/config_p*; do
+        if [[ -f "$fdis" ]]; then
+            # Copy the file to the target directory
+            cp "$fdis" "$replica_path_o"
+            copied_file="$replica_path_o/$(basename "$fdis")"
+
+            # Use awk to flip the last L lines
+            awk -v L="$L" '
+            {
+                lines[NR] = $0          # Store all lines
+            }
+            END {
+                total_lines = NR
+                for (i = 1; i <= total_lines; i++) {
+                    if (i > total_lines - L) {  # Identify the last L lines
+                        split(lines[i], a, " ")
+                        # Flip each element in the line to its negative
+                        for (j = 1; j <= length(a); j++) {
+                            a[j] = -a[j]
+                        }
+                        print a[1], a[2]       # Adjust for two fields per line
+                    } else {
+		        print lines[i]
+	            }
+                }
+            }' "$copied_file" > "$copied_file.tmp"
+
+            # Replace the original copied file with the modified one
+            mv "$copied_file.tmp" "$copied_file"
+
+    fi
     done
 
+    cd "$replica_path_o"
+    echo "$replica_path_o"
+    # Run the simulation and save output files in the respective folder
+    #        echo "1" > "PTval.txt"
+    #        mpirun -n $Nreplica ../../../../build/2DRBI_MC "2DRBI.ini"
+    echo "0" > "PTval.txt"
+    mpirun -n $Nreplica ../../../../build/2DRBI_MC "2DRBI.ini"
+    rm "PTval.txt"
+    #        find "." -type f -name "*Ti_time*" -exec rm -f {} \;
+    #        find "." -type f -name "*.data*" -exec rm -f {} \;
+    #        find "." -type f -name "*config*" -exec rm -f {} \;
+    #        find "." -type f -name "*timeseries.txt*" -exec rm -f {} \;
+    # Navigate back to root directory
+    cd "$OLDPWD"
+
+
+
+    ##   PT SIMS
+
     if [ "$PT" = "true" ];then
-        replica_path=$(printf "$pathformat" "$L" "$disorder" "even" "$i")
-        f1="$replica_path/2DRBI.ini"
-        f2="$replica_path/config_p.data"
-        f3="$replica_path/T_points.data"
+        f1="$replica_path_e/2DRBI.ini"
+        f2="$replica_path_e/config_p.data"
+        f3="$replica_path_e/T_points.data"
         PT_path=$(printf "$pathformat" "$L" "$disorder" "PT" "$i")
 
         mkdir -p "$PT_path"
@@ -89,11 +145,12 @@ for i in "${!Seeds[@]}"; do
         cp "$f1" "$PT_path"
         cp "$f2" "$PT_path"
         cp "$f3" "$PT_path"
+
         cd "$PT_path"
         echo "$PT_path"
         mpirun -n $Nreplica ../../../../build/2DRBI_PT "2DRBI.ini"
-        find "." -type f -name "*timeseries.txt*" -exec rm -f {} \;
-        find "." -type f -name "*Ti_time*" -exec rm -f {} \;
+#        find "." -type f -name "*timeseries.txt*" -exec rm -f {} \;
+#        find "." -type f -name "*Ti_time*" -exec rm -f {} \;
 
         cd "$OLDPWD"
     fi
@@ -102,7 +159,7 @@ done
 
 
 # FINAL SIMULATION at 0 disorder
-mul=10
+mul=1
 therm=$((therm*mul))
 totsweeps=$((totsweeps*mul))
 for init in "0dis"; do
@@ -119,13 +176,14 @@ for init in "0dis"; do
         echo "0" > "PTval.txt"
         mpirun -n $Nreplica ../../../../build/2DRBI_MC "2DRBI.ini"
 	    rm "PTval.txt"
-        find "." -type f -name "*Ti_time*" -exec rm -f {} \;
-        find "." -type f -name "*.data*" -exec rm -f {} \;
-        find "." -type f -name "*config*" -exec rm -f {} \;
+#        find "." -type f -name "*Ti_time*" -exec rm -f {} \;
+#        find "." -type f -name "*.data*" -exec rm -f {} \;
+#        find "." -type f -name "*config*" -exec rm -f {} \;
 
         cd "$OLDPWD"
 done
 
-
+python datacollect.py --L "$L" --disorder "$disorder"
 
 wait
+
