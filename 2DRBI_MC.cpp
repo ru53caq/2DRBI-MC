@@ -296,6 +296,21 @@ void ising_sim::update() {
             E_tot = other_energy;
         }
 
+
+//      Different approach to timeseries: we do cumulative sum of Zratios over time to check convergence times
+
+        if ( (sweeps>thermalization_sweeps+1)&& (sweeps%(1000*pt_sweeps) == 0) ){
+            n1 = time_in_Ti[0];
+            n2 = time_in_Ti[1];
+            double Z_r = n1/(double)n2;
+            double dZ_r = std::sqrt( ((double)n1)/std::pow(n2,2) + ((double)(std::pow(n1,2)))/std::pow(n2,3) );
+            Z_i.push_back(Z_r);
+            dZ_i.push_back(dZ_r);
+
+
+        }
+
+/*
         if (sweeps  == sweep_t_step ){
             if (n2==0)
                 n2+=1;  //in case no samples went to n2 (typically only at start of equilibration)
@@ -309,7 +324,7 @@ void ising_sim::update() {
             t_step+=1;
             sweep_t_step = std::pow(t_step,4)*pt_sweeps;
         }
-
+*/
 
 
         // Checkpoint the amount of times each p-T point has been visited
@@ -577,6 +592,7 @@ void ising_sim::record_measurement() {
     }
     else return;
 }
+
 
 
 

@@ -10,7 +10,7 @@
 ###SBATCH --cpus-per-task=2
 #SBATCH --mail-type=end
 #SBATCH --mail-user=giovanni.canossa@physik.uni-muenchen.de
-#SBATCH --time=00:10:00
+#SBATCH --time=04:00:00
 #-output=/dev/null
 #-error=/dev/null
 
@@ -23,19 +23,22 @@ nodes=${SLURM_NNODES}
 tasks=${SLURM_TASKS_PER_NODE}
 # Define constants
 L=5
-disorder=0.115
+disorder=0.100
 timelimit=100000
-therm=2000000
-totsweeps=2000000
+therm=1000000
+totsweeps=1000000
 Nreplica=8
 Nbins=500
 T_Top=1.180
 T_Top_PT=3.
 
-PT="true"
+
+nodis="true"		##decide whether to run 0dis sims
+mul=5			##sweeps multiplicator of the 0dis sims
+PT="true"		##decide whether to run PT sims
+
 N_disorder_reps=1
 
-##### MULTIPLICATOR for final 0dis simu is set to 1 at line 161 to propagate uncertainties correctly in Z_timeseries
 
 # Path format for replica storage
 pathformat='L_%d/p_%1.3f/%s/Seed_%d'
@@ -159,29 +162,30 @@ done
 
 
 # FINAL SIMULATION at 0 disorder
-mul=1
-therm=$((therm*mul))
-totsweeps=$((totsweeps*mul))
-for init in "0dis"; do
-        replica_path=$(printf "$pathformat" "$L" "$disorder" "$init" "0")
-        mkdir -p "$replica_path"
-        seed=$(shuf -i 1-1000000 -n 1)
-        # Generate configuration and disorder value
-        python genconfigs_MC.py --L "$L" --disorder "$disorder" --timelimit "$timelimit" --therm "$therm" --totsweeps "$totsweeps" --Nreplica "$Nreplica" --Nbins "$Nbins" --Seed "$seed" --init "$init" --replica_path "$replica_path"  --T_Top "$T_Top" --T_Top_PT "$T_Top_PT"
+if [ "$nodis" = "true" ];then
+	therm=$((therm*mul))
+	totsweeps=$((totsweeps*mul))
+	for init in "0dis"; do
+        	replica_path=$(printf "$pathformat" "$L" "$disorder" "$init" "0")
+	        mkdir -p "$replica_path"
+        	seed=$(shuf -i 1-1000000 -n 1)
+	        # Generate configuration and disorder value
+        	python genconfigs_MC.py --L "$L" --disorder "$disorder" --timelimit "$timelimit" --therm "$therm" --totsweeps "$totsweeps" --Nreplica "$Nreplica" --Nbins "$Nbins" --Seed "$seed" --init "$init" --replica_path "$replica_path"  --T_Top "$T_Top" --T_Top_PT "$T_Top_PT"
 
-        cd "$replica_path"
-        echo "running final sim"
-#        echo "1" > "PTval.txt"
-#        mpirun -n $Nreplica ../../../../build/2DRBI "2DRBI.ini"
-        echo "0" > "PTval.txt"
-        mpirun -n $Nreplica ../../../../build/2DRBI_MC "2DRBI.ini"
-	    rm "PTval.txt"
-#        find "." -type f -name "*Ti_time*" -exec rm -f {} \;
-#        find "." -type f -name "*.data*" -exec rm -f {} \;
-#        find "." -type f -name "*config*" -exec rm -f {} \;
+	        cd "$replica_path"
+        	echo "running final sim"
+#        	echo "1" > "PTval.txt"
+#        	mpirun -n $Nreplica ../../../../build/2DRBI "2DRBI.ini"
+	        echo "0" > "PTval.txt"
+        	mpirun -n $Nreplica ../../../../build/2DRBI_MC "2DRBI.ini"
+		    rm "PTval.txt"
+#       	 find "." -type f -name "*Ti_time*" -exec rm -f {} \;
+#        	find "." -type f -name "*.data*" -exec rm -f {} \;
+#        	find "." -type f -name "*config*" -exec rm -f {} \;
 
-        cd "$OLDPWD"
-done
+	        cd "$OLDPWD"
+	done
+fi
 
 python datacollect.py --L "$L" --disorder "$disorder"
 

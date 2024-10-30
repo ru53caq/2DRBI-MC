@@ -116,18 +116,20 @@ void ising_sim::update() {
     overrelaxation();
 
 
-    //line update      [WE TRY TO DO IT ONLY AT THE TOP CHAIN
+    //line update      WE TRY TO LINE UPDATES ONLY AT THE TOP CHAIN
 //    if (temp.temp==T_vec[T_vec.size()-2]){
+    
+
     double dE = 0.;
     for (int i = 0; i < (L+1)/2; i++){
         if (i == (L+1)/2 - 1)
             dE +=  S[i] * J_x[ (L+1) * (L-1)/2 + 2*i ];
-	else if (i < (L+1)/2 -1 ){
+	   else if (i < (L+1)/2 -1 ){
             dE +=  S[i] * J_x[ (L+1) * (L-1)/2 + 2*i ];
             dE +=  S[i] * J_x[ (L+1) * (L-1)/2 + 2*i +1 ];
-	}
+	   }
     }
-    dE = 2.*dE;
+        dE = 2.*dE;
     double u = std::uniform_real_distribution<double>{0., 1.}(rng);
     double alpha = std::exp( - beta*dE);    //Metropolis update 
     double compl_prob = 1./ (1. + alpha);    //Heat bath  update
@@ -141,9 +143,10 @@ void ising_sim::update() {
     }
 
 
-//    }
+//  }
 
-    //NO USE OF PT IS EVER REQUIRE IF WE SKIP THE THERMALIZING PROCEDURE
+
+
     //Parallel tempering
     if ( sweeps % pt_sweeps == 0 ){
 
@@ -156,17 +159,34 @@ void ising_sim::update() {
         temp!= temp_old  ? (pt_checker=1) : (pt_checker=0);
 //    	measurements()["Acceptance"] << pt_checker;
 	    
-	    // For each replica, check if you are at T_Nishimori and update the respective element; 
-	    if ( (temp.temp == T_vec[0]) ){
-		if (sweeps>thermalization_sweeps)
-		    time_in_Ti[!up] +=1;
-		if (up)
-		    n1+=1;
-		else
-		    n2+=1;
+	// For each replica, check if you are at T_Nishimori and update the respective element; 
+	if ( (temp.temp == T_vec[0]) ){
 
-		timeseries.push_back(!up);
+    	    if (sweeps>thermalization_sweeps){
+		time_in_Ti[!up] +=1;
 
+//		std::ofstream ofs;
+//        	ofs.open(simdir+ "Timeseries.txt", std::ofstream::app); // append
+//        	ofs << static_cast<int>(!up) << "\t";
+//	        ofs.close();  
+//	    }
+/*
+	}
+	// something to slow down all other replicas, otherwise no exchanges will happen
+
+
+	else{
+            if (sweeps>thermalization_sweeps){
+                std::ofstream ofs;
+                ofs.open(simdir+ "garbage_"+std::to_string(N_core) + ".txt", std::ofstream::app); // append
+                ofs << static_cast<int>(!up) << "\t";
+                ofs.close();
+            }
+
+	}
+*/
+
+		timeseries.push_back(static_cast<int>(!up));
 		const auto& reference_time = TimeReference::reference_time;
 		TimeReference::initReferenceTime();
 		double us_ref = static_cast<double>( std::chrono::duration_cast<std::chrono::microseconds>(std::chrono::system_clock::now() - TimeReference::reference_time).count() );
@@ -174,29 +194,13 @@ void ising_sim::update() {
 		    timestamps.push_back(us_ref/1000 - timestamps[0]);
 		else
 		    timestamps.push_back(us_ref/1000);
-
-
 	    }
-    }
-//    if ( (sweeps>thermalization_sweeps + total_sweeps/4) && (sweeps - thermalization_sweeps) % (total_sweeps/20)  == 0  ){
-//        std::ofstream ofs1(simdir+ "Ti_time_rep_"+std::to_string(N_core) + ".txt");
-//        for (auto & val : time_in_Ti)
-//    	    ofs1 << val << " ";
-//        ofs1.close();
-//        std::ofstream ofs2(simdir+"Timeseries_"+std::to_string(N_core) + ".txt");
-//        for (bool val : timeseries)
-//	    ofs2 << val << " ";
-//        ofs2.close();
-//        std::ofstream ofs3(simdir+"Timestamps_"+std::to_string(N_core) + ".txt");
-//        ofs3.precision(10);
-//        for (auto & val : timestamps)
-//	    ofs3 << val << " ";
-//        ofs3.close();
-//    }
 
+	}
+
+    }
 
     ++sweeps;
-
 }
 
 // Collects the measurements; NOT NEEDED IN OUR MINIMAL CASE
@@ -243,12 +247,13 @@ double ising_sim::fraction_completed() const {
     if (sweeps>= thermalization_sweeps + total_sweeps){
         f=1.;
     }
+
     if (f==1.){
         std::ofstream ofs1(simdir+ "Ti_time_rep_"+std::to_string(N_core) + ".txt");
         for (auto & val : time_in_Ti)
             ofs1 << val << " ";
         ofs1.close();
-	std::ofstream ofs2(simdir+"Timeseries_"+std::to_string(N_core) + ".txt");
+    	std::ofstream ofs2(simdir+"Timeseries_"+std::to_string(N_core) + ".txt");
         for (bool val : timeseries)
           ofs2 << val << " ";
         ofs2.close();
@@ -452,6 +457,7 @@ void ising_sim::record_measurement() {
     }
     else return;
 }
+
 
 
 

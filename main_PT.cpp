@@ -150,17 +150,19 @@ int main(int argc, char** argv)
 
 
         // Compute and store the timeseries analysis
-        std::vector<bool> n_ts;
+        std::vector<int> n_ts;
         std::vector<double> t_ts;
-        for (int i=0;i<(int) parameters["N_replica"];i++){
-            std::vector<bool> n_i_ts;
+
+
+	for (int i=0;i<(int) parameters["N_replica"];i++){
+            std::vector<int> n_i_ts;
             std::vector<double> t_i_ts;
             std::ifstream n_i_ts_file(simdir+"Timeseries_" + std::to_string(i) + ".txt");
 	    if (!n_i_ts_file) {
 	        std::cerr << "Warning: " << i << "_Timeseries.txt does not exist" << std::endl;
 	        continue;
 	    }
-	    n_i_ts.insert(n_i_ts.end(), std::istream_iterator<double>(n_i_ts_file), std::istream_iterator<double>());
+	    n_i_ts.insert(n_i_ts.end(), std::istream_iterator<int>(n_i_ts_file), std::istream_iterator<int>());
             n_i_ts_file.close();
             std::ifstream t_i_ts_file(simdir+"Timestamps_" + std::to_string(i) + ".txt");
 	    if (!t_i_ts_file) { 
@@ -174,6 +176,7 @@ int main(int argc, char** argv)
             n_ts.insert(n_ts.end(), n_i_ts.begin(), n_i_ts.end());
             t_ts.insert(t_ts.end(), t_i_ts.begin(), t_i_ts.end());
         }
+
         //sorting the timeseries
         std::vector<size_t> indices(t_ts.size());
         std::iota(indices.begin(), indices.end(), 0);
@@ -181,7 +184,7 @@ int main(int argc, char** argv)
             return t_ts[i1] < t_ts[i2];
         });
         std::vector<double> sorted_t_ts(t_ts.size());
-        std::vector<bool> sorted_n_ts(n_ts.size());
+        std::vector<int> sorted_n_ts(n_ts.size());
         for (size_t i = 0; i < indices.size(); ++i) {
             sorted_t_ts[i] = t_ts[indices[i]];
             sorted_n_ts[i] = n_ts[indices[i]]; 
@@ -189,13 +192,46 @@ int main(int argc, char** argv)
         t_ts = sorted_t_ts;
         n_ts = sorted_n_ts;
 
+
+
+/*
+        std::vector<int> n_ts;
+	int val;
+	std::ifstream n_i_ts_file(simdir+"Timeseries.txt");
+	while (n_i_ts_file >> val) 
+            n_ts.push_back(val);
+*/
+
+        //binning procedure
         int n_bins = 1;
-        while (std::pow(n_bins, 4) <= n_ts.size()) {
+        int bin_width = 1000;
+        while (bin_width*n_bins < n_ts.size() )
             ++n_bins;
-        }
+
         std::vector<int> N1_ts_bins(n_bins, 0);
         std::vector<int> N2_ts_bins(n_bins, 0);
 
+        //First, split the timeseries in evenly shaped bins
+        for (int i = 0; i < n_bins; ++i) {
+	    int start = i*bin_width;
+            int end = (i+1)*bin_width -1;
+
+            for (int j = start; j <= end && j < n_ts.size(); ++j) {
+                if (n_ts[j] == 0)
+                    N1_ts_bins[i]++;
+                else
+                    N2_ts_bins[i]++;
+            }
+            if (N2_ts_bins[i] == 0){
+                N2_ts_bins[i] +=1;
+            }
+        }
+        //Then, add to each bin all data from previous bins for the time-evolving average
+        for (int i = 1; i < n_bins; ++i) {   
+            N1_ts_bins[i] += N1_ts_bins[i-1];
+            N2_ts_bins[i] += N2_ts_bins[i-1];
+	}
+/*
         for (int i = 1; i <= n_bins; ++i) {
             int start = std::pow(i - 1, 4);
             int end = std::pow(i, 4) - 1;
@@ -211,18 +247,20 @@ int main(int argc, char** argv)
             }
 
         }
-        std::vector<double> Z_ts(n_bins, 0);
-        std::vector<double> dZ_ts(n_bins, 0);
+*/
+
+        std::vector<double> Z_ts(n_bins, 0.);
+        std::vector<double> dZ_ts(n_bins, 0.);
         for (int i = 0; i < n_bins; ++i) {
-            Z_ts[i] = N1_ts_bins[i]/(double)(N2_ts_bins[i]);
-   	    dZ_ts[i] = std::sqrt(
-            N1_ts_bins[i] / static_cast<double>(N2_ts_bins[i] * N2_ts_bins[i]) +
-            (N1_ts_bins[i] * N1_ts_bins[i]) / static_cast<double>(N2_ts_bins[i] * N2_ts_bins[i] * N2_ts_bins[i])
-            );
-//	    dZ_ts[i] = std::sqrt( N1_ts_bins[i]/(double)(std::pow(N2_ts_bins[i],2)) + std::pow(N1_ts_bins[i],2)/(double)(std::pow(N2_ts_bins[2],3)) ); 
-        }
+	    double N1 = static_cast<double>(N1_ts_bins[i]);
+            double N2 = static_cast<double>(N2_ts_bins[i]);
+            Z_ts[i] = N1/N2;
+	    dZ_ts[i] = std::sqrt( ( N1 / (N2 * N2) ) + (  N1 * N1 / (N2 * N2 * N2 ) ) );
+	}
+
         ar["/results/Z_timeseries"] << Z_ts;
         ar["/results/Z_unc_timeseries"] << dZ_ts;
+
 
         
         for (int n_sim=0;n_sim<(int) parameters["N_replica"];n_sim++){   
@@ -295,3 +333,4 @@ int main(int argc, char** argv)
         return 2;
     }
 }
+
