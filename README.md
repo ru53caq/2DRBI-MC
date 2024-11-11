@@ -2,7 +2,6 @@
 MC code for computing the free energy ratio of the 2DRBI model for varying points in p-T space.
 
 v0.1
-
 Code for computing the free energy ratio of the 2DRBI model for varying points in p-T space.
 
 ### Building and installation
@@ -15,19 +14,50 @@ $ cmake .. -DCONFIG_MAPPING=LAZY -DALPSCore_DIR=~/path_to_ALPSCore -DEigen3_DIR=
 $ make -j8
 ```
 
-## Execution of the code
+## Simulation methods
 
-Numerical implementation of the MC simulation requires the generation of a set of initial configurations and simulation parameters. This process is carried out by [`submit_jobs.py`](./submit_jobs.py), which follows the footprint given by [`RBI_template.ini`](./RBI_template.ini).
+# PT (Daniel_Loss path in temperature)
+- Given a disorder configuration and a distribution of temperatures, run a Monte Carlo chain where different replicas are allowed to exchange Temperature label ergodically.
+Highly reliant on the choice of temperature distribution.
+- Line updpates between even and odd boundary conditions are proposed at all T, but will only be accepted at high temperatures. Swaps will allow percolation of even/odd boundary configurations at low T
+- At the end, computes Z_even/Z_odd as the ratio of times the system remains in one or the other configuration
 
-Once the configuration and the parameter files are generated, one can execute the command 
-```bash
-$ mpirun -n 1 ~/path_to_build/2DRBI ../path_to_ini_file/2DRBI.ini
-```
-to run the code with the chosen parameters and generated configurations.
+The code requires communication between replicas and therefore requires openMPI. 
 
-In its current version, the code will give as output the amount of time it spent in each p-T_point of choice. 
+# MC (partitioned Zratio Calculation)
+calculate Z_even/Z_odd by passing through the 0-disorder axis
+Simulation is divided in four sections:
+-	simulation	of Z_even: N replicas are generated starting from a maximally disordered configuration; the other configurations are obtained by removing 
+		disorder bonds until no error is present. For each replica, run a MC simulation proposing adjacent disorder bond configurations (dE~cost). This gives an individual Z_ratio.
+ 	 At the end of the simulation, take the product of Zratios and expand uncertainties to obtain Z_1, dZ_1 
+		between the disordered and the 0-disorder configuration with even boundary conditions. We will call this output Z_even
+- simulation of Z_odd: Same as above, but all disorder configurations have an extra line of flipped bonds. 
+		After taking product of Zratios, will give Z_2, dZ_2  between the disordered and the 0-disorder configuration with odd boundary conditions. 
+		We will call this output Z_odd.
+- Run another simulation connecting the two configurations with even and odd BC with zero disorder, always using several replicas to ensure the probability 
+		of an exchange between configurations being accepted is dE~cost . THIS NEEDS TO BE DONE ONLY ONCE PER SYSTEM SIZE FOR A FIXED TEMPERATURE T_0dis. 
+		We will call this output Z_0dis.
+- Compute Z = Z_even* Z_0dis / Z_odd
+
 The code is embarassingly parallelized, meaning it will run the same computation on different cores without communication. 
+	
+## Workflow of the code
 
+Numerical implementation of the MC simulation requires the generation of a set of initial configurations and simulation parameters. 
+
+Both MC paths in disorder and PT (or Daniel_Loss) path in temperature can be run.
+
+First, Simulations are run by submitting [`subjobs_MC.sub`](./subjobs_MC.sub). 
+For each disorder iteration, the code will:
+1. Generate its respective directory
+2. Call [`genconfigs_MC.py`](./genconfigs_MC.py), which will generate an initialization file following the structure given by [`RBI_template.ini`](./RBI_template.ini).
+3. Run a simulation for the MC method with even BC
+4. Run a simulation for the MC method with odd BC
+5. Run a simulation for the PT method ( if flagged)
+
+At the end of it all, the code will run a 0disorder simulation to compute Z_0dis for the MC method (if flagged)
+
+Then, all results of the simulations are wrapped by [`datacollect.py`](./datacollect.py)
 ## Code sections
 
 ### SIGNIFICANT PARTS (sections which require changes depending on parameter choice, code updates etc):
