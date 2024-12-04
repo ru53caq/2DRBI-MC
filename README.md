@@ -117,8 +117,8 @@ The efficiency of the simulations depends on careful tuning of parameters:
   For $p \sim 0.1$, set the number of replicas between $L$ and $2L$.
 
 - **Temperature Distribution:**  
-  - For the MC method, $T_{\text{Top}}$ should be slightly above $T_{\text{Nishimori}}$ , typically $T_{\text{Top}} \approx 1.1$. Ensure it doesn’t cross the phase transition.  
-  - For the PT method, $T_{\text{Top\_PT}}$ must be in the disordered phase. A good starting point is $T_{\text{Top\_PT}} \geq 2.5$.
+  - For the MC method, $T_{Top}$ should be slightly above $T_{\text{Nishimori}}$ , typically $T_{\text{Top}} \approx 1.1$. Ensure it doesn’t cross the phase transition.  
+  - For the PT method, $T_{Top\_{PT}}$ must be in the disordered phase. A good starting point is $T_{\text{Top\_PT}} \geq 2.5$.
 
 - **Sanity Checks:**  
   1. Ensure line updates at $T_{\text{Top\_PT}}$ are accepted frequently.
