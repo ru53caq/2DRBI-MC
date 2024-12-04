@@ -148,7 +148,7 @@ Number of simulation sweeps          totsweeps
 Number of different configurations   N_disorder_reps
 start configuration (even or odd)	 start_config
 
-For a given choice of initial configurations, the code generates $N_disorder_reps$ folders and .ini files, each with its own seed and set of bond configurations.
+For a given choice of initial configurations, the code generates ```N_disorder_reps``` folders and .ini files, each with its own seed and set of bond configurations.
 
 To generate the bond configurations, in each disorder rep we first generate an initial bond configuration according to the disorder value of the first p-T point. Disordered bonds are then added/removed at random to reach the disorder value of the adjacent p-T point. This process is repeated until the bond configuration of the last p-T point is obtained. 
 While all disorder reps work on the same set of p-T points, the generation process for these bond configurations are independent and have no correlation between different disorder reps.
