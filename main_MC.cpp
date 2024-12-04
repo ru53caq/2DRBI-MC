@@ -183,8 +183,8 @@ int main(int argc, char** argv)
             std::ifstream dZ_i_ts_file("dZ_" + std::to_string(i) + "_timeseries.txt");
             dZ_i_ts.insert(dZ_i_ts.end(), std::istream_iterator<double>(dZ_i_ts_file), std::istream_iterator<double>());
             dZ_i_ts_file.close();
-            ar["/results/" + std::to_string(n_sim) + "/Z_i_timeseries"] << Z_i_ts;
-            ar["/results/" + std::to_string(n_sim) + "/dZ_i_timeseries"] << dZ_i_ts;
+            ar["/results/" + std::to_string(i) + "/Z_i_timeseries"] << Z_i_ts;
+            ar["/results/" + std::to_string(i) + "/dZ_i_timeseries"] << dZ_i_ts;
 
             for (int j=0; j<Z_i_ts.size();j++){
                 if (i==0){
