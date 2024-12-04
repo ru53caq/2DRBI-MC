@@ -35,7 +35,7 @@ $ make -j8
 
 ### 1. Partitioned Z-ratio Calculation (2DRBI_MC)
 
-This method calculates \( Z_{\text{even}} / Z_{\text{odd}} \) by passing through the zero-disorder axis. The process is divided into the following steps:
+This method calculates $\( Z_{\text{even}} / Z_{\text{odd}} \)$ by passing through the zero-disorder axis. The process is divided into the following steps:
 
 1. **Simulation of \( Z_{\text{even}} \):**  
    - \( N \) replicas are generated starting from an initial disordered configuration.
