@@ -124,14 +124,14 @@ The efficiency of the simulations depends on careful tuning of parameters:
   1. Ensure line updates at $T_{\text{Top}_{PT}}$ are accepted frequently.
   2. Monitor acceptance rates for replica exchanges (target $\sim 0.3-0.4$).
 
-Example parameters for $L = 9$,$p = 0.1$:  
+Example parameters for $L = 9$ , $p = 0.1$:  
 ```bash
 Ncores = 18
 therm = 300000
 totsweeps = 1000000
 T_Top = 1.18
 T_Top_PT = 1000
-
+```
 
 
 ## Code sections
