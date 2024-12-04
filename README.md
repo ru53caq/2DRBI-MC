@@ -6,7 +6,7 @@ Monte Carlo (MC) code for computing the free energy ratio of the 2DRBI model acr
 
 ## Overview
 
-The 2DRBI-MC code provides two simulation methods for computing the ratio $ Z_{\text{even}} / Z_{\text{odd}} $:  
+The 2DRBI-MC code provides two simulation methods for computing the ratio $Z_{\text{even}} / Z_{\text{odd}}$:  
 1. **Partitioned Z-ratio Calculation (2DRBI_MC)**  
 2. **Parallel Tempering (PT) Method (2DRBI_PT)**  
 
@@ -26,8 +26,8 @@ To run the code, the following are required:
 ### Build Steps
 
 ```bash
-$ cmake .. -DCONFIG_MAPPING=LAZY -DALPSCore_DIR=~/path_to_ALPSCore -DEigen3_DIR=~path_to_eigen3/eigen3
-$ make -j8
+$cmake .. -DCONFIG_MAPPING=LAZY -DALPSCore_DIR=~/path_to_ALPSCore -DEigen3_DIR=~path_to_eigen3/eigen3
+$make -j8
 ```
 
 
@@ -35,22 +35,22 @@ $ make -j8
 
 ### 1. Partitioned Z-ratio Calculation (2DRBI_MC)
 
-This method calculates $ Z_{\text{even}} / Z_{\text{odd}}$ by passing through the zero-disorder axis. The process is divided into the following steps:
+This method calculates $Z_{\text{even}} / Z_{\text{odd}}$ by passing through the zero-disorder axis. The process is divided into the following steps:
 
-1. **Simulation of $ Z_{\text{even}}$:**  
-   - $ N $ replicas are generated starting from an initial disordered configuration.
+1. **Simulation of $Z_{\text{even}}$:**  
+   - $N$ replicas are generated starting from an initial disordered configuration.
    - Adjacent configurations are obtained by removing disorder bonds until no disorder is present.
-   - For each replica, a Monte Carlo simulation is run proposing updates between configurations. Exchanges between replicas are accepted with a probability proportional to $ \exp(-\Delta E) $.
-   - At the end, compute the product of intermediate $Z $-ratios to obtain $Z_{\text{even}} $ and its uncertainty $\delta Z_{\text{even}}$.
+   - For each replica, a Monte Carlo simulation is run proposing updates between configurations. Exchanges between replicas are accepted with a probability proportional to $\exp(-\Delta E)$.
+   - At the end, compute the product of intermediate $Z$-ratios to obtain $Z_{\text{even}}$ and its uncertainty $\delta Z_{\text{even}}$.
 
-2. **Simulation of $ Z_{\text{odd}} $:**  
-   - Similar to $ Z_{\text{even}} $, but with one line of flipped bonds to introduce odd boundary conditions.
-   - Compute $ Z_{\text{odd}} $ and $\delta Z_{\text{odd}}$ using the same procedure.
+2. **Simulation of$Z_{\text{odd}}$:**  
+   - Similar to $Z_{\text{even}}$, but with one line of flipped bonds to introduce odd boundary conditions.
+   - Compute $Z_{\text{odd}}$ and $\delta Z_{\text{odd}}$ using the same procedure.
 
-3. **Zero Disorder Simulation ($ Z_{0,\text{dis}}$):**  
+3. **Zero Disorder Simulation ($Z_{0,\text{dis}}$):**  
    - A simulation connects the configurations with even and odd boundary conditions at zero disorder.
    - This step is performed only once per system size for a fixed temperature $T_{0,\text{dis}}$.
-   - Compute $Z_{0,\text{dis}} $ and $\delta Z_{0,\text{dis}}$.
+   - Compute $Z_{0,\text{dis}}$ and $\delta Z_{0,\text{dis}}$.
 
 4. **Final Ratio Computation:**  
    Compute the free energy ratio:  
@@ -65,17 +65,17 @@ This method is embarassingly parallelized
 
 ### 2. Parallel Tempering (2DRBI_PT)
 
-This method involves running $ N $ replicas at $ N $ temperature points with the same fixed disorder configuration. Key steps include:
+This method involves running $N$ replicas at $N$ temperature points with the same fixed disorder configuration. Key steps include:
 
 1. **Line Updates:**  
-   - Propose line updates between even and odd boundary conditions at the highest temperature ($ T \to \infty $).
+   - Propose line updates between even and odd boundary conditions at the highest temperature ($T \to \infty$).
 
 2. **Replica Exchanges:**  
    - Swap configurations between replicas at adjacent temperatures to ensure efficient sampling.
    - Low-temperature configurations can percolate between even and odd boundaries.
 
 3. **Ratio Computation:**  
-   Compute $ Z_{\text{even}} / Z_{\text{odd}} $ as the ratio of time spent in even and odd configurations at $ T_{\text{Nishimori}} $.
+   Compute $Z_{\text{even}} / Z_{\text{odd}}$ as the ratio of time spent in even and odd configurations at $T_{\text{Nishimori}}$.
 
 ---
 
@@ -116,17 +116,17 @@ All results of the simulations are then collected into a single file by [`dataco
 The efficiency of the simulations depends on careful tuning of parameters:
 
 - **Number of Replicas:**  
-  For $ p \sim 0.1 $, set the number of replicas between $ L $ and $ 2L $.
+  For $p \sim 0.1$, set the number of replicas between $L$ and $2L$.
 
 - **Temperature Distribution:**  
-  - For the MC method, $ T_{\text{Top}} $ should be slightly above $ T_{\text{Nishimori}} $, typically $ T_{\text{Top}} \approx 1.1 $. Ensure it doesn’t cross the phase transition.  
-  - For the PT method, $ T_{\text{Top\_PT}} $ must be in the disordered phase. A good starting point is $ T_{\text{Top\_PT}} \geq 2.5 $.
+  - For the MC method,$T_{\text{Top}}$should be slightly above$T_{\text{Nishimori}}$, typically$T_{\text{Top}} \approx 1.1$. Ensure it doesn’t cross the phase transition.  
+  - For the PT method,$T_{\text{Top\_PT}}$must be in the disordered phase. A good starting point is$T_{\text{Top\_PT}} \geq 2.5$.
 
 - **Sanity Checks:**  
-  1. Ensure line updates at $ T_{\text{Top\_PT}} $ are accepted frequently.
-  2. Monitor acceptance rates for replica exchanges (target $ \sim 0.3-0.4 $).
+  1. Ensure line updates at $T_{\text{Top\_PT}}$are accepted frequently.
+  2. Monitor acceptance rates for replica exchanges (target $\sim 0.3-0.4$).
 
-Example parameters for $ L = 9 $, $ p = 0.1 $:  
+Example parameters for $L = 9$,$p = 0.1$:  
 ```bash
 Ncores = 18
 therm = 300000
@@ -142,13 +142,13 @@ T_Top_PT = 1000
 ### submit_jobs.py
 Generates a sequence of simulations for a given choice of parameters. Here, one needs to choose:
 
-$ Lattice size                          L
-$ a list with N temperature values	    T_vec
-$ a list with N disorder values		    p_vec
-$ Number of thermalization sweeps		therm
-$ Number of simulation sweeps		    totsweeps
-$ Number of different configurations	N_disorder_reps
-$ start configuration (even or odd)	    start_config
+$Lattice size                          L
+$a list with N temperature values	    T_vec
+$a list with N disorder values		    p_vec
+$Number of thermalization sweeps		therm
+$Number of simulation sweeps		    totsweeps
+$Number of different configurations	N_disorder_reps
+$start configuration (even or odd)	    start_config
 
 For a given choice of initial configurations, the code generates $N_disorder_reps$ folders and .ini files, each with its own seed and set of bond configurations.
 
