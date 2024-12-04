@@ -65,17 +65,17 @@ This method is embarassingly parallelized
 
 ### 2. Parallel Tempering (2DRBI_PT)
 
-This method involves running $ N $ replicas at \( N $ temperature points with the same fixed disorder configuration. Key steps include:
+This method involves running $ N $ replicas at $ N $ temperature points with the same fixed disorder configuration. Key steps include:
 
 1. **Line Updates:**  
-   - Propose line updates between even and odd boundary conditions at the highest temperature (\( T \to \infty $).
+   - Propose line updates between even and odd boundary conditions at the highest temperature ($ T \to \infty $).
 
 2. **Replica Exchanges:**  
    - Swap configurations between replicas at adjacent temperatures to ensure efficient sampling.
    - Low-temperature configurations can percolate between even and odd boundaries.
 
 3. **Ratio Computation:**  
-   Compute \( Z_{\text{even}} / Z_{\text{odd}} $ as the ratio of time spent in even and odd configurations at \( T_{\text{Nishimori}} $.
+   Compute $ Z_{\text{even}} / Z_{\text{odd}} $ as the ratio of time spent in even and odd configurations at $ T_{\text{Nishimori}} $.
 
 ---
 
@@ -116,17 +116,17 @@ All results of the simulations are then collected into a single file by [`dataco
 The efficiency of the simulations depends on careful tuning of parameters:
 
 - **Number of Replicas:**  
-  For \( p \sim 0.1 $, set the number of replicas between \( L $ and \( 2L $.
+  For $ p \sim 0.1 $, set the number of replicas between $ L $ and $ 2L $.
 
 - **Temperature Distribution:**  
-  - For the MC method, \( T_{\text{Top}} $ should be slightly above \( T_{\text{Nishimori}} $, typically \( T_{\text{Top}} \approx 1.1 $. Ensure it doesn’t cross the phase transition.  
-  - For the PT method, \( T_{\text{Top\_PT}} $ must be in the disordered phase. A good starting point is \( T_{\text{Top\_PT}} \geq 2.5 $.
+  - For the MC method, $ T_{\text{Top}} $ should be slightly above $ T_{\text{Nishimori}} $, typically $ T_{\text{Top}} \approx 1.1 $. Ensure it doesn’t cross the phase transition.  
+  - For the PT method, $ T_{\text{Top\_PT}} $ must be in the disordered phase. A good starting point is $ T_{\text{Top\_PT}} \geq 2.5 $.
 
 - **Sanity Checks:**  
-  1. Ensure line updates at \( T_{\text{Top\_PT}} $ are accepted frequently.
-  2. Monitor acceptance rates for replica exchanges (target \( \sim 0.3-0.4 $).
+  1. Ensure line updates at $ T_{\text{Top\_PT}} $ are accepted frequently.
+  2. Monitor acceptance rates for replica exchanges (target $ \sim 0.3-0.4 $).
 
-Example parameters for \( L = 9 $, \( p = 0.1 $:  
+Example parameters for $ L = 9 $, $ p = 0.1 $:  
 ```bash
 Ncores = 18
 therm = 300000
