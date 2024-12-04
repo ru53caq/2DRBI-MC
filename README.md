@@ -1,6 +1,6 @@
 # 2DRBI-MC
 
-Monte Carlo (MC) code for computing the free energy ratio of the 2DRBI model across various points in \(p - T\) space.
+Monte Carlo (MC) code for computing the free energy ratio of the 2DRBI model across various points in /(p - T/) space.
 
 ---
 
