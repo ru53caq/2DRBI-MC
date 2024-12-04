@@ -138,17 +138,7 @@ T_Top_PT = 1000
 ### SIGNIFICANT PARTS (sections which require changes depending on parameter choice, code updates etc):
 
 ### submit_jobs.py
-Generates a sequence of simulations for a given choice of parameters. Here, one needs to choose:
-
-Lattice size                         L
-a list with N temperature values	    T_vec
-a list with N disorder values		    p_vec
-Number of thermalization sweeps		 therm
-Number of simulation sweeps          totsweeps
-Number of different configurations   N_disorder_reps
-start configuration (even or odd)	 start_config
-
-For a given choice of initial configurations, the code generates ```N_disorder_reps``` folders and .ini files, each with its own seed and set of bond configurations.
+Generates a sequence of simulations for a given choice of parameters.
 
 To generate the bond configurations, in each disorder rep we first generate an initial bond configuration according to the disorder value of the first p-T point. Disordered bonds are then added/removed at random to reach the disorder value of the adjacent p-T point. This process is repeated until the bond configuration of the last p-T point is obtained. 
 While all disorder reps work on the same set of p-T points, the generation process for these bond configurations are independent and have no correlation between different disorder reps.
