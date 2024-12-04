@@ -140,13 +140,13 @@ T_Top_PT = 1000
 ### submit_jobs.py
 Generates a sequence of simulations for a given choice of parameters. Here, one needs to choose:
 
-$Lattice size                          L
-$a list with N temperature values	    T_vec
-$a list with N disorder values		    p_vec
-$Number of thermalization sweeps		therm
-$Number of simulation sweeps		    totsweeps
-$Number of different configurations	N_disorder_reps
-$start configuration (even or odd)	    start_config
+Lattice size                         L
+a list with N temperature values	    T_vec
+a list with N disorder values		    p_vec
+Number of thermalization sweeps		 therm
+Number of simulation sweeps          totsweeps
+Number of different configurations   N_disorder_reps
+start configuration (even or odd)	 start_config
 
 For a given choice of initial configurations, the code generates $N_disorder_reps$ folders and .ini files, each with its own seed and set of bond configurations.
 
