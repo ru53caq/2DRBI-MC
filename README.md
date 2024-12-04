@@ -1,65 +1,142 @@
 # 2DRBI-MC
-MC code for computing the free energy ratio of the 2DRBI model for varying points in p-T space.
 
-v0.1
-Code for computing the free energy ratio of the 2DRBI model for varying points in p-T space.
+Monte Carlo (MC) code for computing the free energy ratio of the 2DRBI model across various points in \( p \)-\( T \) space.
 
-### Building and installation
-To generate jobs and run the code, one first needs to have installed the ALPSCode libraries. Detailed instructions on how to build ALPSCore can be fournd in the
-project's wiki.
+---
 
-The executable client code is compiled through the use of [`CMakeLists.txt`](./CMakeLists.txt). Inside  a build folder, execute the command 
+## Overview
+
+The 2DRBI-MC code provides two simulation methods for computing the ratio \( Z_{\text{even}} / Z_{\text{odd}} \):  
+1. **Partitioned Z-ratio Calculation (2DRBI_MC)**  
+2. **Parallel Tempering (PT) Method (2DRBI_PT)**  
+
+The methods differ in their approach, detailed in **Simulation Methods**.
+
+---
+
+## Building and Installation
+
+### Requirements
+
+To run the code, the following are required:
+- **ALPSCore libraries** (instructions available on ALPSCore's wiki)
+- **CMake**
+- **Eigen3 library**
+
+### Build Steps
+
 ```bash
 $ cmake .. -DCONFIG_MAPPING=LAZY -DALPSCore_DIR=~/path_to_ALPSCore -DEigen3_DIR=~path_to_eigen3/eigen3
 $ make -j8
-```
 
-## Simulation methods
 
-# PT (Daniel_Loss path in temperature)
-- Given a disorder configuration and a distribution of temperatures, run a Monte Carlo chain where different replicas are allowed to exchange Temperature label ergodically.
-Highly reliant on the choice of temperature distribution.
-- Line updpates between even and odd boundary conditions are proposed at all T, but will only be accepted at high temperatures. Swaps will allow percolation of even/odd boundary configurations at low T
-- At the end, computes Z_even/Z_odd as the ratio of times the system remains in one or the other configuration
 
-The code requires communication between replicas and therefore requires openMPI. 
+## Simulation Methods
 
-# MC (partitioned Zratio Calculation)
-calculate Z_even/Z_odd by passing through the 0-disorder axis
-Simulation is divided in four sections:
--	simulation	of Z_even: N replicas are generated starting from a maximally disordered configuration; the other configurations are obtained by removing 
-		disorder bonds until no error is present. For each replica, run a MC simulation proposing adjacent disorder bond configurations (dE~cost). This gives an individual Z_ratio.
- 	 At the end of the simulation, take the product of Zratios and expand uncertainties to obtain Z_1, dZ_1 
-		between the disordered and the 0-disorder configuration with even boundary conditions. We will call this output Z_even
-- simulation of Z_odd: Same as above, but all disorder configurations have an extra line of flipped bonds. 
-		After taking product of Zratios, will give Z_2, dZ_2  between the disordered and the 0-disorder configuration with odd boundary conditions. 
-		We will call this output Z_odd.
-- Run another simulation connecting the two configurations with even and odd BC with zero disorder, always using several replicas to ensure the probability 
-		of an exchange between configurations being accepted is dE~cost . THIS NEEDS TO BE DONE ONLY ONCE PER SYSTEM SIZE FOR A FIXED TEMPERATURE T_0dis. 
-		We will call this output Z_0dis.
-- Compute Z = Z_even* Z_0dis / Z_odd
+### 1. Partitioned Z-ratio Calculation (2DRBI_MC)
 
-The code is embarassingly parallelized, meaning it will run the same computation on different cores without communication. 
-	
-## Workflow of the code
+This method calculates \( Z_{\text{even}} / Z_{\text{odd}} \) by passing through the zero-disorder axis. The process is divided into the following steps:
 
-Numerical implementation of the MC simulation requires the generation of a set of initial configurations and simulation parameters. 
+1. **Simulation of \( Z_{\text{even}} \):**  
+   - \( N \) replicas are generated starting from an initial disordered configuration.
+   - Adjacent configurations are obtained by removing disorder bonds until no disorder is present.
+   - For each replica, a Monte Carlo simulation is run proposing updates between configurations. Exchanges between replicas are accepted with a probability proportional to \( \exp(-\Delta E) \).
+   - At the end, compute the product of intermediate \( Z \)-ratios to obtain \( Z_{\text{even}} \) and its uncertainty \( \delta Z_{\text{even}} \).
 
-Both MC paths in disorder and PT (or Daniel_Loss) path in temperature can be run.
+2. **Simulation of \( Z_{\text{odd}} \):**  
+   - Similar to \( Z_{\text{even}} \), but with one line of flipped bonds to introduce odd boundary conditions.
+   - Compute \( Z_{\text{odd}} \) and \( \delta Z_{\text{odd}} \) using the same procedure.
 
-First, Simulations are run by submitting [`subjobs_MC.sub`](./subjobs_MC.sub). 
-For each disorder iteration, the code will:
-1. Generate its respective directory
-2. Call [`genconfigs_MC.py`](./genconfigs_MC.py), which will generate an initialization file following the structure given by [`RBI_template.ini`](./RBI_template.ini).
-3. Run a simulation for the MC method with even BC
-4. Run a simulation for the MC method with odd BC
-5. Run a simulation for the PT method ( if flagged)
+3. **Zero Disorder Simulation (\( Z_{0,\text{dis}} \)):**  
+   - A simulation connects the configurations with even and odd boundary conditions at zero disorder.
+   - This step is performed only once per system size for a fixed temperature \( T_{0,\text{dis}} \).
+   - Compute \( Z_{0,\text{dis}} \) and \( \delta Z_{0,\text{dis}} \).
 
-At the end of it all, the code will run a 0disorder simulation to compute Z_0dis for the MC method (if flagged)
+4. **Final Ratio Computation:**  
+   Compute the free energy ratio:  
+   \[
+   Z = \frac{Z_{\text{even}} \cdot Z_{0,\text{dis}}}{Z_{\text{odd}}}
+   \]
 
-Then, all results of the simulations are wrapped by [`datacollect.py`](./datacollect.py)
+This method is embarassingly parallelized
+
+
+---
+
+### 2. Parallel Tempering (2DRBI_PT)
+
+This method involves running \( N \) replicas at \( N \) temperature points with the same fixed disorder configuration. Key steps include:
+
+1. **Line Updates:**  
+   - Propose line updates between even and odd boundary conditions at the highest temperature (\( T \to \infty \)).
+
+2. **Replica Exchanges:**  
+   - Swap configurations between replicas at adjacent temperatures to ensure efficient sampling.
+   - Low-temperature configurations can percolate between even and odd boundaries.
+
+3. **Ratio Computation:**  
+   Compute \( Z_{\text{even}} / Z_{\text{odd}} \) as the ratio of time spent in even and odd configurations at \( T_{\text{Nishimori}} \).
+
+---
+
+## Running the Code
+
+Simulations are run by submitting the `subjobs_MC.sub` script. Key parameters to set:
+
+- `L`: Linear system size
+- `p`: Disorder value
+- `therm`: Number of thermalization sweeps
+- `totsweeps`: Number of post-thermalization sweeps
+- `Nreplica`: Number of replicas simulated
+- `T_Top`: Maximum temperature for the 2DRBI_MC method
+- `T_Top_PT`: Maximum temperature for the 2DRBI_PT method
+- `PT`: Flag to enable/disable the PT method
+- `N_disorder_reps`: Number of disorder configurations simulated sequentially
+
+### Workflow
+
+1. Generate `N_disorder_reps` seeds.
+2. For each seed, create the relevant disorder configurations for even and odd boundary conditions using `genconfigs_MC.py`.  
+   These are stored in directories:  
+   `L_$L/p_$p/$init/Seed_$Seed`, where `$init` can be `even` or `odd`.
+3. Run simulations for even and odd BC. Results are saved to:  
+   `L_$L/p_$p/even/Seed_$Seed/out.h5`  
+   `L_$L/p_$p/odd/Seed_$Seed/out.h5`
+4. If `PT=True`, run a simulation for the PT method. Results are stored in:  
+   `L_$L/p_$p/PT/Seed_$Seed/out.h5`
+5. Once all replicas are completed, run the zero-disorder simulation. Adjust the `mul` factor to improve accuracy. Results are stored in:  
+   `L_$L/p_$p/0dis/Seed_$Seed/out.h5`
+
+All results of the simulations are then collected into a single file by [`datacollect.py`] and stored in (./datacollect.py)
+
+---
+
+## Tuning Simulation Parameters
+
+The efficiency of the simulations depends on careful tuning of parameters:
+
+- **Number of Replicas:**  
+  For \( p \sim 0.1 \), set the number of replicas between \( L \) and \( 2L \).
+
+- **Temperature Distribution:**  
+  - For the MC method, \( T_{\text{Top}} \) should be slightly above \( T_{\text{Nishimori}} \), typically \( T_{\text{Top}} \approx 1.1 \). Ensure it doesn’t cross the phase transition.  
+  - For the PT method, \( T_{\text{Top\_PT}} \) must be in the disordered phase. A good starting point is \( T_{\text{Top\_PT}} \geq 2.5 \).
+
+- **Sanity Checks:**  
+  1. Ensure line updates at \( T_{\text{Top\_PT}} \) are accepted frequently.
+  2. Monitor acceptance rates for replica exchanges (target \( \sim 0.3-0.4 \)).
+
+Example parameters for \( L = 9 \), \( p = 0.1 \):  
+```bash
+Ncores = 18
+therm = 300000
+totsweeps = 1000000
+T_Top = 1.18
+T_Top_PT = 1000
+
+
+
 ## Code sections
-
 ### SIGNIFICANT PARTS (sections which require changes depending on parameter choice, code updates etc):
 
 ### submit_jobs.py
