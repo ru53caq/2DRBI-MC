@@ -54,9 +54,7 @@ This method calculates $Z_{\text{even}} / Z_{\text{odd}}$ by passing through the
 
 4. **Final Ratio Computation:**  
    Compute the free energy ratio:  
-   \[
-   Z = \frac{Z_{\text{even}} \cdot Z_{0,\text{dis}}}{Z_{\text{odd}}}
-   \]
+   $Z = \frac{Z_{\text{even}} \cdot Z_{0,\text{dis}}}{Z_{\text{odd}}}$
 
 This method is embarassingly parallelized
 
