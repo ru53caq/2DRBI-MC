@@ -28,7 +28,7 @@ To run the code, the following are required:
 ```bash
 $ cmake .. -DCONFIG_MAPPING=LAZY -DALPSCore_DIR=~/path_to_ALPSCore -DEigen3_DIR=~path_to_eigen3/eigen3
 $ make -j8
-
+```
 
 
 ## Simulation Methods
