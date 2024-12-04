@@ -104,11 +104,8 @@ ising_sim::ising_sim(parameters_type & parms, std::size_t seed_offset)
 
 void ising_sim::update() {
     if (sweeps == 0){
-//      Each replica starts at a given T,p, loads PTval, (T,p) and (T+1,p+1) with respective J_x,J_y configs
+//      Each replica starts at a given T,p (T,p) and (T+1,p+1) with respective J_x,J_y configs
 //      Simulation switches between UP= true to say we are in (T,p), up=False to say we are in (T+1,p+1)
-        std::ifstream PTvalue(simdir + "PTval.txt");
-        PTvalue >> PTval;
-        PTvalue.close();
         up = true;      
 
         MPI_Comm_rank(MPI_COMM_WORLD, &N_core);
@@ -149,113 +146,28 @@ void ising_sim::update() {
             if (this_J_y[i] != next_J_y[i])                
                     diff_J_y.push_back(i);
 	}
-    // IN CASE OF ZRATIO CALCULATION, PRELOAD THE OTHER Z CONFIGURATION
-//	FOR NOW WE SKIP THE CONFIG GENERATION STEP: WE WILL THERMALIZE IN THE MAIN SIMULATION
-	//In case of Zratio calculation, reload the final spin configuration available
-//        if (PTval ==0){
-//            std::ifstream spin_config(simdir + std::to_string(T)+ ".data");
-//            for (int i=0; i<S.size(); i++)
-//                spin_config >> S[i];
-//        spin_config.close();
-//        }
+    E_tot = total_energy();
 
-
-        E_tot = total_energy();
    }
-    // measuring relevant observables (useless in the current code version)
 
-
-    double beta = 1./T;    // USE temp.temp in case of no embarassing parallelization;
+    double beta = 1./T;
 
     //Heatbath update
-    for (int i = 0; i < lat_sites; ++i)
+    for (int i = 0; i < 10; ++i)
         Heatbath(random_site(rng), beta);
     //Overrelaxation update
-    overrelaxation();
+//    overrelaxation();         
 
-/*  //NO USE OF PT IS EVER REQUIRE IF WE SKIP THE THERMALIZING PROCEDURE
-    //Parallel tempering
-    if ( (PTval > 0 ) && ( (sweeps + 1) % pt_sweeps == 0 ) ){
-
-        double current_energy = total_energy();
-
-        phase_point temp_old = temp;
-
-        std::vector<int> other_J_x(lat_sites+2*L);
-        std::vector<int> other_J_y(lat_sites+2*L);
-
-        negotiate_update(rng, true,
-        [&](phase_point other) {
-            auto it = std::find(T_vec.begin(), T_vec.end(), other.temp);
-            int index = std::distance( T_vec.begin(), it);
-            double other_p = p_vec[index];
-            std::string other_p_str = (std::to_string(other_p)).substr(0,5); 
-            std::ifstream conf(simdir + "config_p=" + other_p_str + ".data");
-            for (int i=0; i<J_x.size(); i++){
-                conf >> other_J_x[i];
-                conf >> other_J_y[i];
-            }
-            conf.close();
-            //compute energy of current spin config with the new potential bond config
-
-            double other_energy = 0.;
-            for(int i = 0; i < lat_sites; ++i){
-                other_energy   += other_J_x[i] * ( S[i] * S[lat.nb_2(i)] ) + other_J_y[i] * ( S[i] * S[lat.nb_1(i)] );
-                if (i == (L+1)/2 -1)
-                    other_energy += S[i] * other_J_x[ (L+1) * (L-1)/2 + 2*i ];
-                else if (i < (L+1)/2 -1 ){
-                    other_energy += S[i] * other_J_x[ (L+1) * (L-1)/2 + 2*i ];
-                    other_energy += S[i] * other_J_x[ (L+1) * (L-1)/2 + 2*i +1 ];
-                }
-                else if (i == (L+1)*(L-2)/2)
-                    other_energy += S[i] * other_J_x[ (L+1)*(L-1)/2 + L ];
-                else if (i > (L+1)*(L-2)/2){
-                    other_energy += S[i] * other_J_x[ (L+1) * (L-1)/2 +  L + 2*( i - (L+1)*(L-2)/2) -1 ];
-                    other_energy += S[i] * other_J_x[ (L+1) * (L-1)/2 +  L + 2*( i - (L+1)*(L-2)/2)];
-                }
-            }
-            other_energy = - other_energy;
-            double dE= other_energy - current_energy;
-            return -(other_energy / other.temp  - current_energy / temp.temp);  
-        });
-
-        //keep track of the p-T point at which the replica is currently at
-        //Once PT is over, the computation of Z_i/Z_i+1 ratio will start
-        temp!= temp_old  ? (pt_checker=1) : (pt_checker=0);
-        if (pt_checker ==1){
-            auto it = std::find(T_vec.begin(), T_vec.end(), temp.temp);
-            int index = std::distance( T_vec.begin(), it);
-            double other_p = p_vec[index];
-//            std::cout << "Update accepted" << std::endl;
-            std::string other_p_str = (std::to_string(other_p)).substr(0,5); 
-            std::ifstream conf(simdir + "config_p=" + other_p_str + ".data");
-            for (int i=0; i<J_x.size(); i++){
-                conf >> J_x[i];
-                conf >> J_y[i];
-            }
-            conf.close();
-            p = other_p;
-            E_tot = total_energy();
-            T = temp.temp;
-            ind = index;
-        }
-
-    }
-*/
-
-    // ADDED THE CONDITION OF HAVING SWEEPS>THERMALIZATION_SWEEPS: THIS IS ONLY TRUE WHEN NO CONFIGURATION IS FED INITIALLY
     //embarassingly parallel movement between the initial p-T point and its neighbour 
-    if ( (PTval ==0) && ( (sweeps) % pt_sweeps == 0 ) ){
+    if ( (sweeps) % pt_sweeps == 0 ){
 
         double current_energy = E_tot;
-        std::vector<int> other_J_x(lat_sites+2*L);
-        std::vector<int> other_J_y(lat_sites+2*L);
-        double other_T;
-        double other_p;
+        std::vector<int> other_J_x(lat_sites+2*L), other_J_y(lat_sites+2*L);
+        double other_T, other_p;
         if (up){
             if (sweeps>thermalization_sweeps)
-        	   time_in_Ti[0] +=1;     //actually used in computations
-            n1 +=1;                   //only for timeseries analysis
+        	   time_in_Ti[0] ++;     //actually used in computations
+            n1 ++;                   //only for timeseries analysis
     	    other_T = next_T;
     	    other_p = next_p;
     	    other_J_x = next_J_x;
@@ -263,15 +175,14 @@ void ising_sim::update() {
    	    }
         else{
             if (sweeps>thermalization_sweeps)	
-	    	  time_in_Ti[1] +=1;     //actually used in computations
-            n2+=1;                   // only for timeseries analysis
+	    	  time_in_Ti[1] ++;     //actually used in computations
+            n2++;                   // only for timeseries analysis
     	    other_T = this_T;
     	    other_p = this_p;
     	    other_J_x = this_J_x;
     	    other_J_y = this_J_y;
         }
 
-    	double other_energy =0.;
         double deltaE = 0.;
         for(int i = 0; i < diff_J_x.size(); i++){
    	        if (diff_J_x[i] < lat_sites)
@@ -284,7 +195,7 @@ void ising_sim::update() {
     	for(int i = 0; i < diff_J_y.size(); i++)
 	       deltaE += J_y[ diff_J_y[i] ] * (S[ diff_J_y[i] ] * S[lat.nb_1( diff_J_y[i] )]);
 
-    	other_energy = current_energy + 2.*deltaE;  
+    	double other_energy = current_energy + 2.*deltaE;  
         double u = std::uniform_real_distribution<double>{0., 1.}(rng);
         double alpha = std::exp(-(other_energy / other_T  - current_energy / T) );
         if(u<alpha){
@@ -297,8 +208,7 @@ void ising_sim::update() {
         }
 
 
-//      Different approach to timeseries: we do cumulative sum of Zratios over time to check convergence times
-
+        // Timeseries of Zratios 
         if ( (sweeps>thermalization_sweeps+1)&& (sweeps%(1000*pt_sweeps) == 0) ){
             n1 = time_in_Ti[0];
             n2 = time_in_Ti[1];
@@ -306,30 +216,9 @@ void ising_sim::update() {
             double dZ_r = std::sqrt( ((double)n1)/std::pow(n2,2) + ((double)(std::pow(n1,2)))/std::pow(n2,3) );
             Z_i.push_back(Z_r);
             dZ_i.push_back(dZ_r);
-
-
         }
 
-/*
-        if (sweeps  == sweep_t_step ){
-            if (n2==0)
-                n2+=1;  //in case no samples went to n2 (typically only at start of equilibration)
-	    double Z_r = n1/(double)n2;
-            double dZ_r = std::sqrt( ((double)n1)/std::pow(n2,2) + ((double)(std::pow(n1,2)))/std::pow(n2,3) );
-	    Z_i.push_back(Z_r);
-            dZ_i.push_back(dZ_r);
-
-            n1=0;
-            n2=0;
-            t_step+=1;
-            sweep_t_step = std::pow(t_step,4)*pt_sweeps;
-        }
-*/
-
-
-        // Checkpoint the amount of times each p-T point has been visited
-        // Checkpoint the Z_i and dZ_i timeseries analysis
-
+        // Checkpoint the amount of times each p-T point has been visited, Z_i and dZ_i timeseries
         if ( sweeps == thermalization_sweeps+total_sweeps - 10 ){
             std::ofstream ofs1("Ti_time_rep_"+std::to_string(N_core) + ".txt");
             for (auto & val : time_in_Ti)
@@ -343,12 +232,8 @@ void ising_sim::update() {
             for (auto & val : dZ_i)
                 ofs3 << val << " ";
             ofs3.close();
-
         }
-
     }
-
-
 
     ++sweeps;
 }
@@ -542,8 +427,6 @@ void ising_sim::Heatbath(int i, double beta) {
 void ising_sim::overrelaxation(){
     for (int i = 0; i < lat_sites; ++i){
         if (local_energy(i)==0 &&  i%L>0 && i%L < L-1 ){
-//            bool flip=std::bernoulli_distribution{0.5}(rng);
-//            if (flip)
                 S[i] *= -1;
         }
     }

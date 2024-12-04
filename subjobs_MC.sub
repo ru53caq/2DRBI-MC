@@ -4,7 +4,7 @@
 #SBATCH -J cycle_jobs
 #SBATCH --partition=test,yao,shared,sapphire
 #SBATCH --nodes=1
-#SBATCH --ntasks-per-node=32
+#SBATCH --ntasks-per-node=28
 #SBATCH --cpus-per-task=2
 #SBATCH --mem=4G
 ###SBATCH --cpus-per-task=2
@@ -22,19 +22,19 @@ module load openmpi/4.1.5-fasrc01
 nodes=${SLURM_NNODES}
 tasks=${SLURM_TASKS_PER_NODE}
 # Define constants
-L=5
-disorder=0.100
+L=11
+disorder=0.05
 timelimit=100000
-therm=1000000
-totsweeps=1000000
-Nreplica=8
+therm=100000
+totsweeps=400000
+Nreplica=28
 Nbins=500
-T_Top=1.180
-T_Top_PT=3.
+T_Top=0.7   #1.180
+T_Top_PT=30.
 
 
 nodis="true"		##decide whether to run 0dis sims
-mul=5			##sweeps multiplicator of the 0dis sims
+mul=10			##sweeps multiplicator of the 0dis sims
 PT="true"		##decide whether to run PT sims
 
 N_disorder_reps=1
@@ -61,11 +61,7 @@ for i in "${!Seeds[@]}"; do
 
     cd "$replica_path_e"
 
-    #        echo "1" > "PTval.txt"
-    #        mpirun -n $Nreplica ../../../../build/2DRBI_MC "2DRBI.ini"
-    echo "0" > "PTval.txt"
     mpirun -n $Nreplica ../../../../build/2DRBI_MC "2DRBI.ini"
-    rm "PTval.txt"
     #        find "." -type f -name "*Ti_time*" -exec rm -f {} \;
     #        find "." -type f -name "*.data*" -exec rm -f {} \;
     #        find "." -type f -name "*config*" -exec rm -f {} \;
@@ -121,11 +117,7 @@ for i in "${!Seeds[@]}"; do
     cd "$replica_path_o"
     echo "$replica_path_o"
     # Run the simulation and save output files in the respective folder
-    #        echo "1" > "PTval.txt"
-    #        mpirun -n $Nreplica ../../../../build/2DRBI_MC "2DRBI.ini"
-    echo "0" > "PTval.txt"
     mpirun -n $Nreplica ../../../../build/2DRBI_MC "2DRBI.ini"
-    rm "PTval.txt"
     #        find "." -type f -name "*Ti_time*" -exec rm -f {} \;
     #        find "." -type f -name "*.data*" -exec rm -f {} \;
     #        find "." -type f -name "*config*" -exec rm -f {} \;

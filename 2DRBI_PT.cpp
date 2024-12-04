@@ -85,15 +85,14 @@ ising_sim::ising_sim(parameters_type & parms, std::size_t seed_offset)
     }
 }
 
-
-void ising_sim::update() {
-   if (sweeps == 0){
 //      Each replica starts at a given T and loads J_x,J_y config
 //      Simulation switches between UP= true to say we are in the original config, up=False to say we added a line flip
 //      Each core follows the CONFIG, not the Temperature!!!
 //      We will add 2 parameters: N1 for UP=True (line not flipped), N2 for UP=false (line flipped)
 //      Line updates are proposed every sweep!!!
 //      N1 and N2 are increased IF REPLICA IS AT Tmin AND HAS THE LINE FLIPPED
+void ising_sim::update() {
+    if (sweeps == 0){
         auto it = std::find(T_vec.begin(), T_vec.end(), temp.temp);
         ind = std::distance( T_vec.begin(), it);    //ind contains the index of the current T-p point
         N_core = ind;
@@ -104,48 +103,41 @@ void ising_sim::update() {
             disorder_config >> J_y[i];
         }
 	E_tot = total_energy();
-   }
-//    if (sweeps % measuring_sweeps == 0) // placed before update
-//        record_measurement();
+    }
 
     double beta = 1./temp.temp;
+
     //Heatbath update
-    for (int i = 0; i < lat_sites; ++i)
+    for (int i = 0; i < 10; ++i)
         Heatbath(random_site(rng), beta);
     //Overrelaxation update
-    overrelaxation();
-
+//    overrelaxation();
 
     //line update      WE TRY TO LINE UPDATES ONLY AT THE TOP CHAIN
-//    if (temp.temp==T_vec[T_vec.size()-2]){
+    if (temp.temp==T_vec[T_vec.size()-2]){
     
-
-    double dE = 0.;
-    for (int i = 0; i < (L+1)/2; i++){
-        if (i == (L+1)/2 - 1)
-            dE +=  S[i] * J_x[ (L+1) * (L-1)/2 + 2*i ];
-	   else if (i < (L+1)/2 -1 ){
-            dE +=  S[i] * J_x[ (L+1) * (L-1)/2 + 2*i ];
-            dE +=  S[i] * J_x[ (L+1) * (L-1)/2 + 2*i +1 ];
-	   }
-    }
+        double dE = 0.;
+        for (int i = 0; i < (L+1)/2; i++){
+            if (i == (L+1)/2 - 1)
+                dE +=  S[i] * J_x[ (L+1) * (L-1)/2 + 2*i ];
+    	   else if (i < (L+1)/2 -1 ){
+                dE +=  S[i] * J_x[ (L+1) * (L-1)/2 + 2*i ];
+                dE +=  S[i] * J_x[ (L+1) * (L-1)/2 + 2*i +1 ];
+    	   }
+        }
         dE = 2.*dE;
-    double u = std::uniform_real_distribution<double>{0., 1.}(rng);
-    double alpha = std::exp( - beta*dE);    //Metropolis update 
-    double compl_prob = 1./ (1. + alpha);    //Heat bath  update
-//    if (u<alpha){
-    if (u > compl_prob){
-        
-        E_tot = E_tot + dE;
-        for (int i = (L+1)*(L-1)/2; i < L + (L+1)*(L-1)/2; i++)
-            J_x[i] *= -1;
-        up = !up;   // This replica has a flipped line of bonds!!!
+
+        double u = std::uniform_real_distribution<double>{0., 1.}(rng);
+        double alpha = std::exp( - beta*dE);    //Metropolis update 
+        double compl_prob = 1./ (1. + alpha);    //Heat bath  update
+        //if (u<alpha){
+        if (u > compl_prob){
+            E_tot = E_tot + dE;
+            for (int i = (L+1)*(L-1)/2; i < L + (L+1)*(L-1)/2; i++)
+                J_x[i] *= -1;
+            up = !up;   // This replica has flipped boundary conditions
+        }
     }
-
-
-//  }
-
-
 
     //Parallel tempering
     if ( sweeps % pt_sweeps == 0 ){
@@ -158,49 +150,27 @@ void ising_sim::update() {
         });
         temp!= temp_old  ? (pt_checker=1) : (pt_checker=0);
 //    	measurements()["Acceptance"] << pt_checker;
-	    
-	// For each replica, check if you are at T_Nishimori and update the respective element; 
-	if ( (temp.temp == T_vec[0]) ){
+    	    
+    	// For each replica, check if you are at T_Nishimori and update the respective element; 
+    	if ( (temp.temp == T_vec[0]) ){
+        	if (sweeps>thermalization_sweeps){
+            	time_in_Ti[!up] +=1;
 
-    	    if (sweeps>thermalization_sweeps){
-		time_in_Ti[!up] +=1;
-
-//		std::ofstream ofs;
-//        	ofs.open(simdir+ "Timeseries.txt", std::ofstream::app); // append
-//        	ofs << static_cast<int>(!up) << "\t";
-//	        ofs.close();  
-//	    }
-/*
-	}
-	// something to slow down all other replicas, otherwise no exchanges will happen
-
-
-	else{
-            if (sweeps>thermalization_sweeps){
-                std::ofstream ofs;
-                ofs.open(simdir+ "garbage_"+std::to_string(N_core) + ".txt", std::ofstream::app); // append
-                ofs << static_cast<int>(!up) << "\t";
-                ofs.close();
-            }
-
-	}
-*/
-
-		timeseries.push_back(static_cast<int>(!up));
-		const auto& reference_time = TimeReference::reference_time;
-		TimeReference::initReferenceTime();
-		double us_ref = static_cast<double>( std::chrono::duration_cast<std::chrono::microseconds>(std::chrono::system_clock::now() - TimeReference::reference_time).count() );
-		if (timestamps.size()>0)
-		    timestamps.push_back(us_ref/1000 - timestamps[0]);
-		else
-		    timestamps.push_back(us_ref/1000);
-	    }
-
-	}
-
+        		timeseries.push_back(static_cast<int>(!up));
+        		const auto& reference_time = TimeReference::reference_time;
+        		TimeReference::initReferenceTime();
+        		double us_ref = static_cast<double>( std::chrono::duration_cast<std::chrono::microseconds>(std::chrono::system_clock::now() - TimeReference::reference_time).count() );
+        		if (timestamps.size()>0)
+        		    timestamps.push_back(us_ref/1000 - timestamps[0]);
+        		else
+        		    timestamps.push_back(us_ref/1000);
+        	}
+    	}
     }
 
     ++sweeps;
+
+    //Timeseries are saved once the replica is claimed to be over in fraction_completed()
 }
 
 // Collects the measurements; NOT NEEDED IN OUR MINIMAL CASE
@@ -208,7 +178,7 @@ void ising_sim::measure() {
 //    if (sweeps < thermalization_sweeps && (sweeps+1) != measuring_sweeps || ((sweeps+1) % measuring_sweeps !=0))
     if (sweeps > -5)
         return;
-
+/*
     Nmeas +=1;
 //    measurements()["is_even"] << ((S[0]*S[L-1] +1)/2);
     for (std::string op : op_names){     
@@ -237,6 +207,7 @@ void ising_sim::measure() {
         measurements()[op + "^4"] << op_value * op_value* op_value * op_value;
         measurements()[op + "_Hist"] << OP_Hist;
     }
+*/
 }
 
 // Returns a number between 0.0 and 1.0 with the completion percentage
@@ -407,8 +378,6 @@ void ising_sim::Heatbath(int i, double beta) {
 void ising_sim::overrelaxation(){
     for (int i = 0; i < lat_sites; ++i){
         if (local_energy(i)==0 &&  i%L>0 && i%L < L-1 ){
-//            bool flip=std::bernoulli_distribution{0.5}(rng);
-//            if (flip)
                 S[i] *= -1;
         }
     }

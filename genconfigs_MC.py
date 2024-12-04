@@ -239,9 +239,9 @@ def main():
         p_Top_PT = 1/(1 + math.exp(2/T_Top_PT))
         p_nishimori = 1/(1 + math.exp(2/T_nishimori))
         for q in range(Nreplica):
-            T_vec_PT[q] = T_nishimori + (T_Top_PT - T_nishimori) * q/(Nreplica-1)
-#            p_loc = p_nishimori + (p_Top_PT - p_nishimori) * q/(Nreplica-1)
-#            T_vec_PT[q] = 2/ math.log((1-p_loc)/p_loc)
+#            T_vec_PT[q] = T_nishimori + (T_Top_PT - T_nishimori) * q/(Nreplica-1)
+            p_loc = p_nishimori + (p_Top_PT - p_nishimori) * q/(Nreplica-1)
+            T_vec_PT[q] = 2/ math.log((1-p_loc)/p_loc)
 
 ## Save T-p datapoints in the replica path so simulations know where to look up to
         Tfilename = '%s/T_points.data'%replica_path

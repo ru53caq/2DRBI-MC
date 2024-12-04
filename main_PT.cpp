@@ -192,8 +192,6 @@ int main(int argc, char** argv)
         t_ts = sorted_t_ts;
         n_ts = sorted_n_ts;
 
-
-
 /*
         std::vector<int> n_ts;
 	int val;
@@ -222,9 +220,6 @@ int main(int argc, char** argv)
                 else
                     N2_ts_bins[i]++;
             }
-            if (N2_ts_bins[i] == 0){
-                N2_ts_bins[i] +=1;
-            }
         }
         //Then, add to each bin all data from previous bins for the time-evolving average
         for (int i = 1; i < n_bins; ++i) {   
@@ -249,12 +244,16 @@ int main(int argc, char** argv)
         }
 */
 
+	std::cout << "made it this far" << std::endl;
         std::vector<double> Z_ts(n_bins, 0.);
         std::vector<double> dZ_ts(n_bins, 0.);
         for (int i = 0; i < n_bins; ++i) {
 	    double N1 = static_cast<double>(N1_ts_bins[i]);
             double N2 = static_cast<double>(N2_ts_bins[i]);
-            Z_ts[i] = N1/N2;
+            if (N2 < 1.){
+                N2 = 1.;
+            }
+	    Z_ts[i] = N1/N2;
 	    dZ_ts[i] = std::sqrt( ( N1 / (N2 * N2) ) + (  N1 * N1 / (N2 * N2 * N2 ) ) );
 	}
 

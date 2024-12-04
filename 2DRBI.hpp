@@ -48,10 +48,10 @@ namespace TimeReference {
     static void initReferenceTime() {
         std::tm reference_tm = {};
         reference_tm.tm_year = 2024 - 1900; // Year since 1900
-        reference_tm.tm_mon = 10 - 1;       // October (0-based)
-        reference_tm.tm_mday = 30;          // 24th day of the month
-        reference_tm.tm_hour = 2;
-        reference_tm.tm_min = 35;
+        reference_tm.tm_mon = 12 - 1;       // October (0-based)
+        reference_tm.tm_mday = 4;          // 24th day of the month
+        reference_tm.tm_hour = 14;
+        reference_tm.tm_min = 0;
         reference_tm.tm_sec = 0;
         reference_tm.tm_isdst = -1;         // Not considering DST
         
@@ -79,7 +79,6 @@ class ising_sim : public pt_adapter<phase_space_point::temperature> {
     int Nmeas = 0;
     double E_tot;
     int NBins;
-    int PTval;
     std::string simdir;
     std::vector<int> J_x;
     std::vector<int> J_y;
