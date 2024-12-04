@@ -41,16 +41,16 @@ This method calculates $Z_{\text{even}} / Z_{\text{odd}}$ by passing through the
    - $N$ replicas are generated starting from an initial disordered configuration.
    - Adjacent configurations are obtained by removing disorder bonds until no disorder is present.
    - For each replica, a Monte Carlo simulation is run proposing updates between configurations. Exchanges between replicas are accepted with a probability proportional to $\exp(-\Delta E)$.
-   - At the end, compute the product of intermediate $Z$-ratios to obtain $Z_{\text{even}}$ and its uncertainty $\delta Z_{\text{even}}$.
+   - At the end, compute the product of intermediate $Z$-ratios to obtain $Z_{\text{even}}$ and its uncertainty $dZ_{\text{even}}$.
 
 2. **Simulation of$Z_{\text{odd}}$:**  
    - Similar to $Z_{\text{even}}$, but with one line of flipped bonds to introduce odd boundary conditions.
-   - Compute $Z_{\text{odd}}$ and $\delta Z_{\text{odd}}$ using the same procedure.
+   - Compute $Z_{\text{odd}}$ and $d Z_{\text{odd}}$ using the same procedure.
 
 3. **Zero Disorder Simulation ($Z_{0,\text{dis}}$):**  
    - A simulation connects the configurations with even and odd boundary conditions at zero disorder.
    - This step is performed only once per system size for a fixed temperature $T_{0,\text{dis}}$.
-   - Compute $Z_{0,\text{dis}}$ and $\delta Z_{0,\text{dis}}$.
+   - Compute $Z_{0,\text{dis}}$ and $d Z_{0,\text{dis}}$.
 
 4. **Final Ratio Computation:**  
    Compute the free energy ratio:  
